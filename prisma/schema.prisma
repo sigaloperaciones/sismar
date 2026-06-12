@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Sede {
+  id        Int       @id @default(autoincrement())
+  name      String
+  address   String?
+  agencias  Agencia[]
+}
+
+model CentroCosto {
+  id        Int       @id @default(autoincrement())
+  code      String    @unique
+  name      String
+  agencias  Agencia[]
+}
+
+model Agencia {
+  id              Int             @id @default(autoincrement())
+  name            String
+  sedeId          Int
+  centroCostoId   Int
+  email           String?
+  sede            Sede            @relation(fields: [sedeId], references: [id])
+  centroCosto     CentroCosto     @relation(fields: [centroCostoId], references: [id])
+  usuarios        Usuario[]
+  correspondenciaRecibida Correspondencia[] @relation("Destinatario")
+  planillas       Planilla[]
+}
+
+model EmpresaMensajeria {
+  id      Int     @id @default(autoincrement())
+  nombre  String  @unique
+  activo  Boolean @default(true)
+}
+
+model Ciudad {
+  id          Int    @id @default(autoincrement())
+  codigo      String @unique // 5-7 chars alfanumérico
+  nombre      String
+  departamento String
+}
+
+model Usuario {
+  id              Int              @id @default(autoincrement())
+  username        String           @unique
+  email           String?
+  password        String
+  role            String           @default("AGENCIA") // ADMIN, MENSAJERO, AGENCIA
+  agenciaId       Int?
+  agencia         Agencia?         @relation(fields: [agenciaId], references: [id])
+  usuarioPermisos UsuarioPermiso[]
+}
+
+model TipoAnexo {
+  id      Int     @id @default(autoincrement())
+  name    String  @unique
+  anexos  Anexo[]
+}
+
+model Correspondencia {
+  id                  Int       @id @default(autoincrement())
+  consecutive         String?
+
+  // Tipo: ENTRANTE (de externos hacia agencias) | SALIENTE (de agencias hacia externos)
+  tipo                String    @default("ENTRANTE")
+
+  fechaRecepcion      DateTime  @default(now())
+
+  // Datos del remitente / empresa mensajería
+  empresaMensajeria   String?
+  remitenteNombre     String?
+  remitenteCiudad     String?
+  destinatarioNombre  String?
+
+  asunto              String
+  importancia         String    @default("NORMAL") // NORMAL, ALTA
+  necesitaRespuesta   Boolean   @default(false)
+
+  estado              String    @default("POR_ENTREGAR") // POR_ENTREGAR, ENTREGADA, DEVUELTA
+
+  // Agencia relacionada (destinataria en entrante, remitente en saliente)
+  agenciaId           Int
+  agencia             Agencia   @relation("Destinatario", fields: [agenciaId], references: [id])
+
+  // Anexos
+  anexos              Anexo[]
+
+  // Documentos escaneados
+  documentoRecibidoUrl String?
+  
+  // Datos de guía para correspondencia saliente
+  numeroGuia          String?
+  mensajero           String?
+  guiaUrl             String?
+
+  // Planilla de entrega
+  planillaId          Int?
+  planilla            Planilla? @relation(fields: [planillaId], references: [id])
+
+  fechaEntrega        DateTime?
+  recibidoPor         String?
+  observacionDevolucion String?
+  observacionAgencia    String?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Anexo {
+  id                Int             @id @default(autoincrement())
+  correspondenciaId Int
+  correspondencia   Correspondencia @relation(fields: [correspondenciaId], references: [id])
+  tipoAnexoId       Int
+  tipoAnexo         TipoAnexo       @relation(fields: [tipoAnexoId], references: [id])
+  cantidad          Int             @default(1)
+}
+
+model Planilla {
+  id              Int       @id @default(autoincrement())
+  fechaGeneracion DateTime  @default(now())
+  agenciaId       Int
+  agencia         Agencia   @relation(fields: [agenciaId], references: [id])
+  estado          String    @default("GENERADA") // GENERADA, CERRADA, PROCESADA
+
+  correspondencias Correspondencia[]
+  recorridoPlanillas RecorridoPlanilla[]
+}
+
+model Recorrido {
+  id          Int      @id @default(autoincrement())
+  fecha       DateTime @default(now())
+  tipo        String   @default("AM") // AM, PM, EXCEPCIONAL
+  estado      String   @default("INICIADO") // INICIADO, TERMINADO, ANULADO
+  notas       String?
+  creadoPor   String?
+
+  planillas   RecorridoPlanilla[]
+}
+
+model RecorridoPlanilla {
+  id          Int      @id @default(autoincrement())
+  recorridoId Int
+  planillaId  Int
+  recorrido   Recorrido @relation(fields: [recorridoId], references: [id])
+  planilla    Planilla  @relation(fields: [planillaId], references: [id])
+
+  @@unique([recorridoId, planillaId])
+}
+
+// Configuración de la empresa (branding, datos generales)
+model EmpresaConfig {
+  id             Int      @id @default(autoincrement())
+  nombre         String   @default("SISMAR")
+  nit            String?
+  logoUrl        String?
+  uploadsDir     String?
+  // Colores en formato HSL string, ej: "221.2 83.2% 53.3%"
+  colorPrimary   String?
+  colorSecondary String?
+  colorAccent    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// Catálogo de permisos disponibles en el sistema
+model Permiso {
+  id          Int              @id @default(autoincrement())
+  codigo      String           @unique // ej: "correspondencia.entrante.crear"
+  nombre      String           // "Registrar Correspondencia Entrante"
+  descripcion String?
+  modulo      String           // "correspondencia", "planillas", "admin"
+  rolPermisos     RolPermiso[]
+  usuarioPermisos UsuarioPermiso[]
+}
+
+// Permisos por defecto asignados a cada rol
+model RolPermiso {
+  id        Int     @id @default(autoincrement())
+  rol       String  // ADMIN, MENSAJERO, AGENCIA
+  permisoId Int
+  permiso   Permiso @relation(fields: [permisoId], references: [id])
+  concedido Boolean @default(true)
+
+  @@unique([rol, permisoId])
+}
+
+// Overrides de permisos por usuario individual
+// Si no existe fila → hereda del rol
+// Si existe → sobreescribe (true=grant, false=deny)
+model UsuarioPermiso {
+  id        Int     @id @default(autoincrement())
+  usuarioId Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+  permisoId Int
+  permiso   Permiso @relation(fields: [permisoId], references: [id])
+  concedido Boolean
+
+  @@unique([usuarioId, permisoId])
+}
