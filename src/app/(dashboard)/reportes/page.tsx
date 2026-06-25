@@ -73,6 +73,36 @@ export default async function ReportesPage({
         prisma.empresaMensajeria.findMany({ where: { activo: true }, select: { nombre: true }, orderBy: { nombre: "asc" } })
     ])
 
+    // Build human-readable filters for CSV export
+    const activeFilters: string[] = []
+    if (statusFilter && statusFilter !== "ALL") {
+        activeFilters.push(`Estado: ${statusFilter === "POR_ENTREGAR" ? "Pendiente" : statusFilter === "ENTREGADA" ? "Entregada" : "Devuelta"}`)
+    }
+    if (tipoFilter && tipoFilter !== "ALL") {
+        activeFilters.push(`Tipo: ${tipoFilter}`)
+    }
+    if (fechaInicio) activeFilters.push(`Desde: ${fechaInicio}`)
+    if (fechaFin) activeFilters.push(`Hasta: ${fechaFin}`)
+    if (agenciaId && agenciaId !== "ALL") {
+        const ag = agencias.find(a => a.id.toString() === agenciaId)
+        if (ag) activeFilters.push(`Agencia: ${ag.name}`)
+    }
+    if (importancia && importancia !== "ALL") {
+        activeFilters.push(`Importancia: ${importancia}`)
+    }
+    if (necesitaRespuesta && necesitaRespuesta !== "ALL") {
+        activeFilters.push(`Requiere Respuesta: ${necesitaRespuesta === "true" ? "Sí" : "No"}`)
+    }
+    if (empresaMensajeria && empresaMensajeria !== "ALL") {
+        activeFilters.push(`Empresa: ${empresaMensajeria}`)
+    }
+    if (search) {
+        activeFilters.push(`Búsqueda: "${search}"`)
+    }
+    if (activeFilters.length === 0) {
+        activeFilters.push("Sin filtros (Últimos 100 registros)")
+    }
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -132,8 +162,9 @@ export default async function ReportesPage({
                 <ReportFilters agencias={agencias} empresas={empresas} />
 
                 {/* Vista dinámica */}
-                <ReportView items={items} />
+                <ReportView items={items} activeFilters={activeFilters} />
             </div>
         </div>
     )
 }
+

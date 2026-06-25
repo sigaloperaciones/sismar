@@ -14,6 +14,8 @@ export default async function EditarUsuarioPage({ params }: { params: Promise<{ 
 
     if (!usuario) notFound()
 
+    const onSubmitAction = updateUserAction.bind(null, userId)
+
     return (
         <div className="space-y-6">
             <div>
@@ -29,7 +31,7 @@ export default async function EditarUsuarioPage({ params }: { params: Promise<{ 
                     role: usuario.role as "ADMIN" | "MENSAJERO" | "AGENCIA",
                     agenciaId: usuario.agenciaId ? String(usuario.agenciaId) : "",
                 }}
-                onSubmit={(formData) => updateUserAction(userId, null, formData)}
+                onSubmit={onSubmitAction}
             />
         </div>
     )

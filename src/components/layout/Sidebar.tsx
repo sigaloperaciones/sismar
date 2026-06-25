@@ -27,14 +27,14 @@ import { logoutAction } from "@/app/actions/auth";
 
 const mainMenuItems = [
     { name: "Inicio", href: "/", icon: Home },
-    { name: "Entrante", href: "/correspondencia/entrante", icon: Inbox },
-    { name: "Saliente", href: "/correspondencia/saliente", icon: Send },
-    { name: "Completar Pendientes", href: "/correspondencia/pendientes", icon: ClipboardCheck },
-    { name: "Mi Correspondencia", href: "/mi-correspondencia", icon: InboxIcon },
+    { name: "Correspondencia Entrante", href: "/correspondencia/entrante", icon: InboxIcon },
+    { name: "Correspondencia Saliente", href: "/correspondencia/saliente", icon: Send },
+    { name: "Mis Planillas", href: "/mi-correspondencia", icon: ClipboardCheck },
     { name: "Planillas", href: "/planillas", icon: FileText },
     { name: "Recorridos", href: "/recorridos", icon: Truck },
     { name: "Reportes", href: "/reportes", icon: BarChart3 },
 ];
+
 
 const adminMenuItems = [
     { name: "Configuración", href: "/admin/config", icon: Settings },
@@ -60,7 +60,7 @@ export function Sidebar({ role, username }: SidebarProps) {
     return (
         <>
             <div className={cn(
-                "fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white transform transition-transform duration-200 ease-in-out md:translate-x-0 md:relative",
+                "fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white transform transition-transform duration-200 ease-in-out md:translate-x-0 md:relative print:hidden",
                 isOpen ? "translate-x-0" : "-translate-x-full"
             )}>
                 <div className="flex flex-col h-full">
@@ -168,7 +168,7 @@ export function Sidebar({ role, username }: SidebarProps) {
             </div>
 
             {/* Mobile Toggle */}
-            <div className="fixed top-0 left-0 z-40 p-4 md:hidden">
+            <div className="fixed top-0 left-0 z-40 p-4 md:hidden print:hidden">
                 <Button variant="outline" size="icon" onClick={() => setIsOpen(!isOpen)} className="bg-white">
                     <Menu className="w-5 h-5" />
                 </Button>

@@ -12,7 +12,8 @@ import {
     CheckCircle2, 
     XCircle,
     Inbox,
-    Send
+    Send,
+    Download
 } from "lucide-react"
 import AsuntoCell from "./AsuntoCell"
 
@@ -38,9 +39,10 @@ interface MailItem {
 
 interface ReportViewProps {
     items: MailItem[]
+    activeFilters?: string[]
 }
 
-export default function ReportView({ items }: ReportViewProps) {
+export default function ReportView({ items, activeFilters = [] }: ReportViewProps) {
     const [activeTab, setActiveTab] = useState<"table" | "chart">("table")
     const [hoveredData, setHoveredData] = useState<{
         x: number
@@ -106,6 +108,56 @@ export default function ReportView({ items }: ReportViewProps) {
     const chartData = getChartData()
     const maxVal = chartData.reduce((acc, curr) => Math.max(acc, curr.entrante, curr.saliente, 1), 1)
 
+    // --- Exportar a CSV ---
+    const exportToCSV = () => {
+        if (items.length === 0) return
+
+        const headers = [
+            "Fecha",
+            "Tipo",
+            "Estado",
+            "Agencia",
+            "Remitente / Destinatario",
+            "Empresa de Mensajeria",
+            "Asunto",
+            "Importancia",
+            "Requiere Respuesta",
+            "Notas Agencia",
+            "Notas Devolución"
+        ]
+
+        const csvContent = [
+            `"Reporte Generado el ${format(new Date(), "dd/MM/yyyy HH:mm")}"`,
+            `"Filtros Activos: ${activeFilters.join(" | ")}"`,
+            "",
+            headers.join(","),
+            ...items.map(item => {
+                return [
+                    `"${format(new Date(item.fechaRecepcion), "dd/MM/yyyy HH:mm")}"`,
+                    `"${item.tipo}"`,
+                    `"${item.estado === "POR_ENTREGAR" ? "Pendiente" : item.estado === "ENTREGADA" ? "Entregada" : "Devuelta"}"`,
+                    `"${item.agencia?.name?.replace(/"/g, '""') || ""}"`,
+                    `"${(item.remitenteNombre || item.destinatarioNombre || "").replace(/"/g, '""')}"`,
+                    `"${(item.empresaMensajeria || "").replace(/"/g, '""')}"`,
+                    `"${item.asunto.replace(/"/g, '""')}"`,
+                    `"${item.importancia}"`,
+                    `"${item.necesitaRespuesta ? "Sí" : "No"}"`,
+                    `"${(item.observacionAgencia || "").replace(/"/g, '""')}"`,
+                    `"${(item.observacionDevolucion || "").replace(/"/g, '""')}"`
+                ].join(",")
+            })
+        ].join("\n")
+
+        const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = `reporte-correspondencia-${format(new Date(), "yyyyMMdd-HHmm")}.csv`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+    }
+
     // Configuración del SVG
     const svgWidth = 800
     const svgHeight = 350
@@ -144,6 +196,16 @@ export default function ReportView({ items }: ReportViewProps) {
                     <BarChart3 className="w-4 h-4" />
                     Gráfica Diaria
                 </button>
+                <div className="ml-auto flex items-center pr-2 py-2">
+                    <button
+                        onClick={exportToCSV}
+                        disabled={items.length === 0}
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Download className="w-3.5 h-3.5" />
+                        Exportar CSV
+                    </button>
+                </div>
             </div>
 
             {/* Contenido según la pestaña */}

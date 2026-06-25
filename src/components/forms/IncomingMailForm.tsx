@@ -5,7 +5,7 @@ import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { registerIncomingMail } from "@/app/actions/correspondencia"
+import { registerIncomingMail, updateMailAction } from "@/app/actions/correspondencia"
 import { Plus, Trash2, Building2, MapPin, Send, Paperclip, AlertCircle, RotateCcw } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { incomingMailSchema, type IncomingMailFormData } from "@/lib/schemas/correspondencia"
@@ -40,11 +40,21 @@ function SectionHeader({ icon, title, subtitle }: { icon: React.ReactNode; title
 }
 
 export default function IncomingMailForm({ 
-    agencias, tiposAnexo, ciudades, empresas 
+    agencias, tiposAnexo, ciudades, empresas, onSuccess, initialData
 }: { 
-    agencias: Agencia[], tiposAnexo: TipoAnexo[], ciudades: Ciudad[], empresas: Empresa[] 
+    agencias: Agencia[], tiposAnexo: TipoAnexo[], ciudades: Ciudad[], empresas: Empresa[], onSuccess?: () => void, initialData?: any
 }) {
-    const [attachments, setAttachments] = useState([{ typeId: "", quantity: 1 }])
+    const initialAttachments = initialData?.anexos && initialData.anexos.length > 0
+        ? initialData.anexos.map((a: any) => ({
+            typeId: String(a.tipoAnexoId),
+            quantity: a.cantidad,
+            identifiers: a.detalles && a.detalles.length > 0 
+                ? a.detalles.map((d: any) => d.identificador) 
+                : Array(a.cantidad).fill("")
+        }))
+        : [{ typeId: "", quantity: 1, identifiers: [""] }]
+
+    const [attachments, setAttachments] = useState<{typeId: string, quantity: number, identifiers: string[]}[]>(initialAttachments)
     const { toast } = useToast()
 
     const ciudadOptions = ciudades.map(c => ({
@@ -59,22 +69,55 @@ export default function IncomingMailForm({
     const form = useForm<IncomingMailFormData>({
         resolver: zodResolver(incomingMailSchema),
         defaultValues: {
-            importancia: "NORMAL",
-            necesitaRespuesta: false,
+            importancia: initialData?.importancia || "NORMAL",
+            necesitaRespuesta: initialData?.necesitaRespuesta || false,
+            empresaMensajeria: initialData?.empresaMensajeria || "",
+            remitenteNombre: initialData?.remitenteNombre || initialData?.destinatarioNombre || "",
+            remitenteCiudad: initialData?.remitenteCiudad || "",
+            agenciaId: initialData?.agenciaId ? String(initialData.agenciaId) : "",
+            asunto: initialData?.asunto || "",
         },
     })
     const { formState: { errors, isSubmitting }, watch, setValue } = form
     const importancia = watch("importancia")
     const necesitaRespuesta = watch("necesitaRespuesta")
 
-    const addAttachment = () => setAttachments([...attachments, { typeId: "", quantity: 1 }])
+    const addAttachment = () => setAttachments([...attachments, { typeId: "", quantity: 1, identifiers: [""] }])
     const removeAttachment = (index: number) => setAttachments(attachments.filter((_, i) => i !== index))
-    const updateAttachment = (index: number, field: "typeId" | "quantity", value: string | number) => {
+    const updateAttachment = (index: number, field: "typeId", value: string) => {
         setAttachments(attachments.map((a, i) => i === index ? { ...a, [field]: value } : a))
+    }
+    const updateAttachmentQuantity = (index: number, quantity: number) => {
+        setAttachments(attachments.map((a, i) => {
+            if (i === index) {
+                const newIdentifiers = [...a.identifiers]
+                if (quantity > newIdentifiers.length) {
+                    newIdentifiers.push(...Array(quantity - newIdentifiers.length).fill(""))
+                } else {
+                    newIdentifiers.length = quantity
+                }
+                return { ...a, quantity, identifiers: newIdentifiers }
+            }
+            return a
+        }))
+    }
+    const updateAttachmentIdentifier = (index: number, idIndex: number, value: string) => {
+        setAttachments(attachments.map((a, i) => {
+            if (i === index) {
+                const newIdentifiers = [...a.identifiers]
+                newIdentifiers[idIndex] = value
+                return { ...a, identifiers: newIdentifiers }
+            }
+            return a
+        }))
     }
 
     const onSubmit = async (data: IncomingMailFormData) => {
         const formData = new FormData()
+        if (initialData) {
+            formData.append("id", String(initialData.id))
+            formData.append("tipo", "ENTRANTE")
+        }
         formData.append("empresaMensajeria", data.empresaMensajeria)
         formData.append("remitenteNombre", data.remitenteNombre)
         formData.append("remitenteCiudad", data.remitenteCiudad ?? "")
@@ -87,17 +130,21 @@ export default function IncomingMailForm({
             if (att.typeId) {
                 formData.append("anexoType", att.typeId)
                 formData.append("anexoQuantity", String(att.quantity))
+                formData.append("anexoIdentifiers", JSON.stringify(att.identifiers))
             }
         }
 
-        const res = await registerIncomingMail(null, formData)
+        const res = initialData 
+            ? await updateMailAction(null, formData)
+            : await registerIncomingMail(null, formData)
 
         if (res?.error) {
             toast({ title: "Error al registrar", description: res.error, variant: "destructive" })
         } else {
-            toast({ title: "Correspondencia registrada", description: "El registro fue guardado exitosamente." })
+            toast({ title: initialData ? "Correspondencia actualizada" : "Correspondencia registrada", description: initialData ? "Los cambios fueron guardados exitosamente." : "El registro fue guardado exitosamente." })
             form.reset()
-            setAttachments([{ typeId: "", quantity: 1 }])
+            setAttachments([{ typeId: "", quantity: 1, identifiers: [""] }])
+            onSuccess?.()
         }
     }
 
@@ -113,8 +160,8 @@ export default function IncomingMailForm({
                         <Send className="w-5 h-5 text-white rotate-180" />
                     </div>
                     <div>
-                        <h2 className="text-white font-bold text-lg">Registrar Correspondencia Entrante</h2>
-                        <p className="text-blue-100 text-sm">Ingrese los datos de la correspondencia recibida</p>
+                        <h2 className="text-white font-bold text-lg">{initialData ? "Editar Correspondencia Entrante" : "Registrar Correspondencia Entrante"}</h2>
+                        <p className="text-blue-100 text-sm">{initialData ? "Modifique los datos de la correspondencia" : "Ingrese los datos de la correspondencia recibida"}</p>
                     </div>
                 </div>
             </div>
@@ -305,42 +352,61 @@ export default function IncomingMailForm({
 
                         <div className="space-y-3">
                             {attachments.map((att, index) => (
-                                <div key={index} className="flex gap-3 items-end bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                    <div className="flex-1">
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de Anexo</label>
-                                        <Select
-                                            value={att.typeId}
-                                            onValueChange={(v) => updateAttachment(index, "typeId", v)}
+                                <div key={index} className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-3">
+                                    <div className="flex gap-3 items-end">
+                                        <div className="flex-1">
+                                            <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de Anexo</label>
+                                            <Select
+                                                value={att.typeId}
+                                                onValueChange={(v) => updateAttachment(index, "typeId", v)}
+                                            >
+                                                <SelectTrigger className="bg-white border-gray-200 text-sm h-9">
+                                                    <SelectValue placeholder="Seleccione tipo..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {tiposAnexo.map(t => (
+                                                        <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="w-28">
+                                            <label className="block text-xs font-medium text-gray-600 mb-1">Cantidad</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={att.quantity}
+                                                onChange={(e) => updateAttachmentQuantity(index, parseInt(e.target.value) || 1)}
+                                                className="w-full h-9 px-3 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeAttachment(index)}
+                                            disabled={attachments.length === 1}
+                                            className="h-9 w-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                            aria-label="Eliminar anexo"
                                         >
-                                            <SelectTrigger className="bg-white border-gray-200 text-sm h-9">
-                                                <SelectValue placeholder="Seleccione tipo..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {tiposAnexo.map(t => (
-                                                    <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
                                     </div>
-                                    <div className="w-28">
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">Cantidad</label>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            value={att.quantity}
-                                            onChange={(e) => updateAttachment(index, "quantity", parseInt(e.target.value) || 1)}
-                                            className="w-full h-9 px-3 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => removeAttachment(index)}
-                                        disabled={attachments.length === 1}
-                                        className="h-9 w-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                        aria-label="Eliminar anexo"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    {att.quantity > 0 && att.typeId && (
+                                        <div className="bg-white border border-gray-200 rounded-lg p-2 space-y-2 max-h-[200px] overflow-y-auto">
+                                            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Identificadores (opcional)</p>
+                                            {att.identifiers.map((ident, idx) => (
+                                                <div key={idx} className="flex items-center gap-2">
+                                                    <span className="text-xs font-medium text-gray-400 w-5 text-right">{idx + 1}.</span>
+                                                    <input
+                                                        type="text"
+                                                        placeholder={`Identificador ${idx + 1}...`}
+                                                        value={ident}
+                                                        onChange={(e) => updateAttachmentIdentifier(index, idx, e.target.value)}
+                                                        className="flex-1 h-8 px-2 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -351,7 +417,7 @@ export default function IncomingMailForm({
                 <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
                     <button
                         type="button"
-                        onClick={() => { form.reset(); setAttachments([{ typeId: "", quantity: 1 }]) }}
+                        onClick={() => { form.reset(); setAttachments([{ typeId: "", quantity: 1, identifiers: [""] }]) }}
                         className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
                     >
                         <RotateCcw className="w-4 h-4" /> Limpiar

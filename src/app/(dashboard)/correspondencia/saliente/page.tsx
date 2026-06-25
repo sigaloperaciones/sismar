@@ -1,28 +1,48 @@
 import { prisma } from "@/lib/prisma"
-import OutgoingMailForm from "@/components/forms/OutgoingMailForm"
-import { ArrowUpRight } from "lucide-react"
+import SalienteClient from "./SalienteClient"
+import { Send } from "lucide-react"
 
-export default async function OutgoingMailPage() {
-    const agencias = await prisma.agencia.findMany({ select: { id: true, name: true } })
+export const revalidate = 0
+
+export default async function CorrespondenciaSalientePage() {
+    const agencias = await prisma.agencia.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } })
     const ciudades = await prisma.ciudad.findMany({ select: { nombre: true, departamento: true }, orderBy: { nombre: "asc" } })
-    const empresas = await prisma.empresaMensajeria.findMany({ where: { activo: true }, select: { nombre: true }, orderBy: { nombre: "asc" } })
+    const empresas = await prisma.empresaMensajeria.findMany({ where: { activo: true }, select: { nombre: true, nombreMensajero: true }, orderBy: { nombre: "asc" } })
+    const tiposAnexo = await prisma.tipoAnexo.findMany({ select: { id: true, name: true } })
+
+    const salientes = await prisma.correspondencia.findMany({
+        where: {
+            planillaId: null,
+            estado: "POR_ENTREGAR",
+            tipo: "SALIENTE",
+        },
+        include: {
+            agencia: true,
+        },
+        orderBy: {
+            fechaRecepcion: "desc",
+        },
+    })
 
     return (
         <div className="space-y-6">
-            {/* Page header */}
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
-                    <ArrowUpRight className="w-5 h-5" />
+                <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 shadow-sm">
+                    <Send className="w-5 h-5" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Correspondencia Saliente</h1>
-                    <p className="text-sm text-gray-500">Registre la correspondencia que sale hacia el exterior</p>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Correspondencia Saliente</h1>
+                    <p className="text-sm text-gray-500">Gestione la correspondencia saliente y complete sus datos</p>
                 </div>
             </div>
 
-            <div className="max-w-3xl">
-                <OutgoingMailForm agencias={agencias} ciudades={ciudades} empresas={empresas} />
-            </div>
+            <SalienteClient 
+                salientes={salientes} 
+                ciudades={ciudades} 
+                empresas={empresas}
+                agencias={agencias}
+                tiposAnexo={tiposAnexo}
+            />
         </div>
     )
 }

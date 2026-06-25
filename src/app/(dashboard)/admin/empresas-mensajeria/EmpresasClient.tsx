@@ -12,6 +12,8 @@ interface Empresa {
     id: number
     nombre: string
     activo: boolean
+    nombreMensajero?: string | null
+    rutasPersonalizadas?: boolean
 }
 
 export default function EmpresasClient({ empresas }: { empresas: Empresa[] }) {
@@ -23,9 +25,12 @@ export default function EmpresasClient({ empresas }: { empresas: Empresa[] }) {
     const [localEmpresas, setLocalEmpresas] = useState(empresas)
     const [activoEdit, setActivoEdit] = useState(true)
 
+    const [rutasEdit, setRutasEdit] = useState(false)
+
     function openCreate() {
         setEditItem(null)
         setActivoEdit(true)
+        setRutasEdit(false)
         setError("")
         setShowModal(true)
     }
@@ -33,12 +38,14 @@ export default function EmpresasClient({ empresas }: { empresas: Empresa[] }) {
     function openEdit(empresa: Empresa) {
         setEditItem(empresa)
         setActivoEdit(empresa.activo)
+        setRutasEdit(empresa.rutasPersonalizadas ?? false)
         setError("")
         setShowModal(true)
     }
 
     function handleSubmit(formData: FormData) {
         formData.set("activo", String(activoEdit))
+        formData.set("rutasPersonalizadas", String(rutasEdit))
         setError("")
         startTransition(async () => {
             let result
@@ -81,9 +88,15 @@ export default function EmpresasClient({ empresas }: { empresas: Empresa[] }) {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
-                    <Truck className="w-4 h-4 text-indigo-500" />
-                    <span className="text-sm font-semibold text-gray-700">{localEmpresas.length} empresa{localEmpresas.length !== 1 ? "s" : ""}</span>
+                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center">
+                    <div className="flex items-center gap-2 flex-1">
+                        <Truck className="w-4 h-4 text-indigo-500" />
+                        <span className="text-sm font-semibold text-gray-700">{localEmpresas.length} empresa{localEmpresas.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <div className="w-48 hidden md:block text-xs font-semibold text-gray-500 uppercase">Mensajero</div>
+                    <div className="w-40 hidden md:block text-xs font-semibold text-gray-500 uppercase">Rutas Person.</div>
+                    <div className="w-24 hidden md:block text-xs font-semibold text-gray-500 uppercase text-center">Estado</div>
+                    <div className="w-16"></div>
                 </div>
                 <div className="divide-y divide-gray-50">
                     {localEmpresas.length === 0 && (
@@ -100,18 +113,30 @@ export default function EmpresasClient({ empresas }: { empresas: Empresa[] }) {
                             <div className="flex-1 min-w-0">
                                 <p className="font-medium text-gray-800">{empresa.nombre}</p>
                             </div>
-                            <div>
+                            <div className="w-48 hidden md:block text-sm text-gray-600 truncate" title={empresa.nombreMensajero || ""}>
+                                {empresa.nombreMensajero || "—"}
+                            </div>
+                            <div className="w-40 hidden md:flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={empresa.rutasPersonalizadas ?? false}
+                                    readOnly
+                                    className="w-4 h-4 text-indigo-600 rounded border-gray-300 opacity-80 cursor-default"
+                                />
+                                <span className="text-xs text-gray-500">Aplica</span>
+                            </div>
+                            <div className="w-24 text-center">
                                 {empresa.activo ? (
-                                    <span className="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
                                         <CheckCircle className="w-3 h-3" /> Activa
                                     </span>
                                 ) : (
-                                    <span className="flex items-center gap-1 text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                                         <XCircle className="w-3 h-3" /> Inactiva
                                     </span>
                                 )}
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center justify-end w-16 gap-1">
                                 <button
                                     onClick={() => openEdit(empresa)}
                                     className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -158,6 +183,27 @@ export default function EmpresasClient({ empresas }: { empresas: Empresa[] }) {
                                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                                     required
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Nombre del Mensajero</label>
+                                <input
+                                    name="nombreMensajero"
+                                    defaultValue={editItem?.nombreMensajero || ""}
+                                    placeholder="Ej: Juan Perez"
+                                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="rutasPersonalizadas"
+                                    checked={rutasEdit}
+                                    onChange={(e) => setRutasEdit(e.target.checked)}
+                                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                />
+                                <label htmlFor="rutasPersonalizadas" className="text-sm font-medium text-gray-700">
+                                    ¿Hace rutas personalizadas?
+                                </label>
                             </div>
                             {editItem && (
                                 <div>

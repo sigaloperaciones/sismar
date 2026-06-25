@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -35,9 +35,11 @@ model Agencia {
 }
 
 model EmpresaMensajeria {
-  id      Int     @id @default(autoincrement())
-  nombre  String  @unique
-  activo  Boolean @default(true)
+  id                  Int     @id @default(autoincrement())
+  nombre              String  @unique
+  activo              Boolean @default(true)
+  nombreMensajero     String?
+  rutasPersonalizadas Boolean @default(false)
 }
 
 model Ciudad {
@@ -120,14 +122,25 @@ model Anexo {
   tipoAnexoId       Int
   tipoAnexo         TipoAnexo       @relation(fields: [tipoAnexoId], references: [id])
   cantidad          Int             @default(1)
+  detalles          AnexoDetalle[]
+}
+
+model AnexoDetalle {
+  id            Int    @id @default(autoincrement())
+  anexoId       Int
+  anexo         Anexo  @relation(fields: [anexoId], references: [id], onDelete: Cascade)
+  identificador String
 }
 
 model Planilla {
-  id              Int       @id @default(autoincrement())
-  fechaGeneracion DateTime  @default(now())
-  agenciaId       Int
-  agencia         Agencia   @relation(fields: [agenciaId], references: [id])
+  id                Int       @id @default(autoincrement())
+  fechaGeneracion   DateTime  @default(now())
+  agenciaId         Int?
+  agencia           Agencia?  @relation(fields: [agenciaId], references: [id])
+  empresaMensajeria String?
   estado          String    @default("GENERADA") // GENERADA, CERRADA, PROCESADA
+  tipo            String    @default("ENTRANTE") // ENTRANTE, SALIENTE
+  documentoFirmaUrl String? // PDF o foto de la planilla saliente firmada por el mensajero
 
   correspondencias Correspondencia[]
   recorridoPlanillas RecorridoPlanilla[]

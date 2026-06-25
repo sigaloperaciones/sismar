@@ -61,12 +61,15 @@ export async function deleteCiudadAction(id: number) {
 export async function createEmpresaMensajeriaAction(prevState: unknown, formData: FormData) {
     try {
         const nombre = (formData.get("nombre") as string)?.trim()
+        const nombreMensajero = (formData.get("nombreMensajero") as string)?.trim() || null
+        const rutasPersonalizadas = formData.get("rutasPersonalizadas") === "true"
+
         if (!nombre) return { error: "El nombre es obligatorio" }
 
         const exists = await prisma.empresaMensajeria.findUnique({ where: { nombre } })
         if (exists) return { error: "Ya existe una empresa con ese nombre" }
 
-        await prisma.empresaMensajeria.create({ data: { nombre, activo: true } })
+        await prisma.empresaMensajeria.create({ data: { nombre, activo: true, nombreMensajero, rutasPersonalizadas } })
         revalidatePath("/admin/empresas-mensajeria")
         return { success: true }
     } catch (e) {
@@ -79,13 +82,15 @@ export async function updateEmpresaMensajeriaAction(id: number, prevState: unkno
     try {
         const nombre = (formData.get("nombre") as string)?.trim()
         const activo = formData.get("activo") === "true"
+        const nombreMensajero = (formData.get("nombreMensajero") as string)?.trim() || null
+        const rutasPersonalizadas = formData.get("rutasPersonalizadas") === "true"
 
         if (!nombre) return { error: "El nombre es obligatorio" }
 
         const exists = await prisma.empresaMensajeria.findFirst({ where: { nombre, NOT: { id } } })
         if (exists) return { error: "Ya existe otra empresa con ese nombre" }
 
-        await prisma.empresaMensajeria.update({ where: { id }, data: { nombre, activo } })
+        await prisma.empresaMensajeria.update({ where: { id }, data: { nombre, activo, nombreMensajero, rutasPersonalizadas } })
         revalidatePath("/admin/empresas-mensajeria")
         return { success: true }
     } catch (e) {

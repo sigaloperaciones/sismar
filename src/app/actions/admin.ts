@@ -56,7 +56,7 @@ export async function saveEmpresaConfigAction(prevState: unknown, formData: Form
 }
 
 // ── Usuarios ──────────────────────────────────────────────────────────────────
-export async function createUserAction(prevState: unknown, formData: FormData) {
+export async function createUserAction(formData: FormData) {
     await requireAdmin()
     try {
         const username = formData.get("username") as string
@@ -84,7 +84,7 @@ export async function createUserAction(prevState: unknown, formData: FormData) {
     }
 }
 
-export async function updateUserAction(id: number, prevState: unknown, formData: FormData) {
+export async function updateUserAction(id: number, formData: FormData) {
     await requireAdmin()
     try {
         const username = formData.get("username") as string

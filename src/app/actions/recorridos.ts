@@ -21,10 +21,10 @@ export async function createRecorridoAction(tipo: string, notas: string) {
                 rp => rp.planilla.estado !== "PROCESADA"
             )
             if (todasSinProcesar) {
-                // Agregar planillas CERRADAS que no estén en el recorrido
+                // Agregar planillas ENTRANTES CERRADAS que no estén en el recorrido
                 const planillasEnRecorrido = recorridoActivo.planillas.map(rp => rp.planillaId)
                 const nuevasPlanillas = await prisma.planilla.findMany({
-                    where: { estado: "CERRADA", id: { notIn: planillasEnRecorrido } }
+                    where: { estado: "CERRADA", tipo: "ENTRANTE", id: { notIn: planillasEnRecorrido } }
                 })
                 for (const p of nuevasPlanillas) {
                     await prisma.recorridoPlanilla.create({
@@ -36,13 +36,13 @@ export async function createRecorridoAction(tipo: string, notas: string) {
             }
         }
 
-        // Obtener planillas CERRADAS
+        // Obtener planillas ENTRANTES CERRADAS
         const planillasCerradas = await prisma.planilla.findMany({
-            where: { estado: "CERRADA" }
+            where: { estado: "CERRADA", tipo: "ENTRANTE" }
         })
 
         if (planillasCerradas.length === 0) {
-            return { error: "No hay planillas cerradas para iniciar un recorrido" }
+            return { error: "No hay planillas entrantes cerradas para iniciar un recorrido" }
         }
 
         // Crear nuevo recorrido
@@ -55,12 +55,13 @@ export async function createRecorridoAction(tipo: string, notas: string) {
             }
         })
 
-        // Asociar planillas CERRADAS al recorrido
+        // Asociar planillas ENTRANTES CERRADAS al recorrido
         for (const p of planillasCerradas) {
             await prisma.recorridoPlanilla.create({
                 data: { recorridoId: recorrido.id, planillaId: p.id }
             })
         }
+
 
         // Enviar emails a responsables de agencias
         await sendRecorridoEmails(recorrido.id)
@@ -169,6 +170,7 @@ async function sendRecorridoEmails(recorridoId: number) {
         // Por ahora se registra en consola con la información completa
         for (const rp of recorrido.planillas) {
             const agencia = rp.planilla.agencia
+            if (!agencia) continue // Solo planillas entrantes tienen agencia
             const correspondencias = rp.planilla.correspondencias
             const emailsAgencia = agencia.usuarios
                 .filter(u => u.email)
@@ -189,13 +191,14 @@ async function sendRecorridoEmails(recorridoId: number) {
 export async function checkPlanillasAbiertas() {
     try {
         const planillasAbiertas = await prisma.planilla.count({
-            where: { estado: "GENERADA" }
+            where: { estado: "GENERADA", tipo: "ENTRANTE" }
         })
         const planillasCerradas = await prisma.planilla.count({
-            where: { estado: "CERRADA" }
+            where: { estado: "CERRADA", tipo: "ENTRANTE" }
         })
         return { planillasAbiertas, planillasCerradas }
     } catch (error) {
         return { planillasAbiertas: 0, planillasCerradas: 0 }
     }
 }
+

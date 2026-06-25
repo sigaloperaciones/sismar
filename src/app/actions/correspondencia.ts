@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import { revalidatePath } from "next/cache"
 
 export async function registerIncomingMail(prevState: unknown, formData: FormData) {
@@ -34,11 +35,31 @@ export async function registerIncomingMail(prevState: unknown, formData: FormDat
                 consecutive: Date.now().toString(),
                 anexos: {
                     create: anexoTypes
-                        .map((typeId, index) => ({
-                            tipoAnexoId: parseInt(typeId as string),
-                            cantidad: parseInt(anexoQuantities[index] as string) || 1,
-                        }))
-                        .filter(a => !isNaN(a.tipoAnexoId)),
+                        .map((typeId, index) => {
+                            const parsedId = parseInt(typeId as string)
+                            if (isNaN(parsedId)) return null
+
+                            let anexoDetalles = undefined
+                            try {
+                                const identsStr = formData.getAll("anexoIdentifiers")[index] as string
+                                if (identsStr) {
+                                    const idents = JSON.parse(identsStr) as string[]
+                                    const validIdents = idents.filter(i => typeof i === "string" && i.trim() !== "")
+                                    if (validIdents.length > 0) {
+                                        anexoDetalles = {
+                                            create: validIdents.map(identificador => ({ identificador }))
+                                        }
+                                    }
+                                }
+                            } catch (e) {}
+
+                            return {
+                                tipoAnexoId: parsedId,
+                                cantidad: parseInt(anexoQuantities[index] as string) || 1,
+                                detalles: anexoDetalles
+                            }
+                        })
+                        .filter(a => a !== null) as any,
                 },
             },
         })
@@ -60,6 +81,41 @@ export async function registerOutgoingMail(prevState: unknown, formData: FormDat
         const asunto = formData.get("asunto") as string
         const importancia = formData.get("importancia") as string
 
+        const mensajero = formData.get("mensajero") as string
+        const numeroGuia = formData.get("numeroGuia") as string
+        let guiaUrl = null
+
+        const guiaFile = formData.get("guiaFile") as File | null
+        if (guiaFile && guiaFile.size > 0 && guiaFile.name) {
+            const { promises: fs } = require("fs")
+            const path = require("path")
+            
+            const config = await prisma.empresaConfig.findFirst()
+            const uploadsDirParam = config?.uploadsDir
+
+            let baseUploadsDir = uploadsDirParam || path.join(process.cwd(), "public", "uploads")
+            if (!path.isAbsolute(baseUploadsDir)) {
+                baseUploadsDir = path.resolve(process.cwd(), baseUploadsDir)
+            }
+            await fs.mkdir(baseUploadsDir, { recursive: true })
+
+            const filename = `${Date.now()}-${guiaFile.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
+            const filePath = path.join(baseUploadsDir, filename)
+            
+            const arrayBuffer = await guiaFile.arrayBuffer()
+            const buffer = Buffer.from(arrayBuffer)
+            await fs.writeFile(filePath, buffer)
+
+            if (uploadsDirParam) {
+                guiaUrl = `/api/uploads?filename=${encodeURIComponent(filename)}`
+            } else {
+                guiaUrl = `/uploads/${filename}`
+            }
+        }
+
+        const anexoTypes = formData.getAll("anexoType")
+        const anexoQuantities = formData.getAll("anexoQuantity")
+
         if (!agenciaId || !empresaMensajeria || !destinatarioNombre || !asunto) {
             return { error: "Faltan campos obligatorios" }
         }
@@ -77,6 +133,37 @@ export async function registerOutgoingMail(prevState: unknown, formData: FormDat
                 necesitaRespuesta: false,
                 estado: "POR_ENTREGAR",
                 consecutive: "SAL-" + Date.now(),
+                mensajero: mensajero || null,
+                numeroGuia: numeroGuia || null,
+                guiaUrl: guiaUrl,
+                anexos: {
+                    create: anexoTypes
+                        .map((typeId, index) => {
+                            const parsedId = parseInt(typeId as string)
+                            if (isNaN(parsedId)) return null
+
+                            let anexoDetalles = undefined
+                            try {
+                                const identsStr = formData.getAll("anexoIdentifiers")[index] as string
+                                if (identsStr) {
+                                    const idents = JSON.parse(identsStr) as string[]
+                                    const validIdents = idents.filter(i => typeof i === "string" && i.trim() !== "")
+                                    if (validIdents.length > 0) {
+                                        anexoDetalles = {
+                                            create: validIdents.map(identificador => ({ identificador }))
+                                        }
+                                    }
+                                }
+                            } catch (e) {}
+
+                            return {
+                                tipoAnexoId: parsedId,
+                                cantidad: parseInt(anexoQuantities[index] as string) || 1,
+                                detalles: anexoDetalles
+                            }
+                        })
+                        .filter(a => a !== null) as any,
+                },
             },
         })
 
@@ -105,6 +192,8 @@ export async function updateMailAction(prevState: unknown, formData: FormData) {
         const importancia = formData.get("importancia") as string
         const needsRespuesta = formData.get("necesitaRespuesta")
         const necesitaRespuesta = needsRespuesta === "true" || needsRespuesta === "on"
+        const agenciaIdRaw = formData.get("agenciaId")
+        const agenciaId = agenciaIdRaw ? parseInt(agenciaIdRaw as string) : undefined
 
         // Datos específicos para correspondencia saliente
         const numeroGuia = formData.get("numeroGuia") as string
@@ -146,9 +235,48 @@ export async function updateMailAction(prevState: unknown, formData: FormData) {
         }
 
         // Actualizar base de datos
-        const updateData: Record<string, any> = {
+        const updateData: Prisma.CorrespondenciaUpdateInput = {
             asunto,
             importancia,
+        }
+
+        if (agenciaId && !isNaN(agenciaId)) {
+            updateData.agencia = { connect: { id: agenciaId } }
+        }
+
+        if (formData.has("anexoType") || formData.has("anexoQuantity")) {
+            const anexoTypes = formData.getAll("anexoType")
+            const anexoQuantities = formData.getAll("anexoQuantity")
+
+            updateData.anexos = {
+                deleteMany: {}, // Delete all existing anexos
+                create: anexoTypes
+                    .map((typeId, index) => {
+                        const parsedId = parseInt(typeId as string)
+                        if (isNaN(parsedId)) return null
+
+                        let anexoDetalles = undefined
+                        try {
+                            const identsStr = formData.getAll("anexoIdentifiers")[index] as string
+                            if (identsStr) {
+                                const idents = JSON.parse(identsStr) as string[]
+                                const validIdents = idents.filter(i => typeof i === "string" && i.trim() !== "")
+                                if (validIdents.length > 0) {
+                                    anexoDetalles = {
+                                        create: validIdents.map(identificador => ({ identificador }))
+                                    }
+                                }
+                            }
+                        } catch (e) {}
+
+                        return {
+                            tipoAnexoId: parsedId,
+                            cantidad: parseInt(anexoQuantities[index] as string) || 1,
+                            detalles: anexoDetalles
+                        }
+                    })
+                    .filter(a => a !== null) as any,
+            }
         }
 
         if (tipo === "ENTRANTE") {

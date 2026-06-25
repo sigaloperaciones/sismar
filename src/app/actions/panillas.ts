@@ -3,36 +3,67 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 
-export async function generatePlanillaAction(agenciaId: number) {
+export async function generatePlanillaAction(agenciaId: number | null, tipo: "ENTRANTE" | "SALIENTE" = "ENTRANTE") {
     try {
-        // Buscar si existe planilla GENERADA para esta agencia
+        if (tipo === "SALIENTE") {
+            // SALIENTE: no se agrupa por agencia, una sola planilla para toda la correspondencia saliente
+            const existingPlanilla = await prisma.planilla.findFirst({
+                where: { estado: "GENERADA", tipo: "SALIENTE" }
+            })
+
+            // Todos los items salientes sin planilla (sin importar agencia)
+            const items = await prisma.correspondencia.findMany({
+                where: { tipo: "SALIENTE", estado: "POR_ENTREGAR", planillaId: null }
+            })
+
+            if (items.length === 0) {
+                return { error: "No hay correspondencia saliente pendiente" }
+            }
+
+            let planillaId: number
+
+            if (existingPlanilla) {
+                planillaId = existingPlanilla.id
+            } else {
+                const planilla = await prisma.planilla.create({
+                    data: { estado: "GENERADA", tipo: "SALIENTE" }
+                })
+                planillaId = planilla.id
+            }
+
+            await prisma.correspondencia.updateMany({
+                where: { id: { in: items.map(i => i.id) } },
+                data: { planillaId }
+            })
+
+            revalidatePath("/planillas")
+            return { success: true, planillaId, wasExisting: !!existingPlanilla }
+        }
+
+        // ENTRANTE: se agrupa por agencia (comportamiento original)
         const existingPlanilla = await prisma.planilla.findFirst({
-            where: { agenciaId, estado: "GENERADA" }
+            where: { agenciaId: agenciaId!, estado: "GENERADA", tipo: "ENTRANTE" }
         })
 
-        // Items sin planilla para esta agencia
         const items = await prisma.correspondencia.findMany({
-            where: { agenciaId, estado: "POR_ENTREGAR", planillaId: null }
+            where: { agenciaId: agenciaId!, tipo: "ENTRANTE", estado: "POR_ENTREGAR", planillaId: null }
         })
 
         if (items.length === 0) {
-            return { error: "No hay correspondencia pendiente para esta agencia" }
+            return { error: "No hay correspondencia entrante pendiente para esta agencia" }
         }
 
         let planillaId: number
 
         if (existingPlanilla) {
-            // Agregar a planilla existente
             planillaId = existingPlanilla.id
         } else {
-            // Crear nueva planilla
             const planilla = await prisma.planilla.create({
-                data: { agenciaId, estado: "GENERADA" }
+                data: { agenciaId: agenciaId!, estado: "GENERADA", tipo: "ENTRANTE" }
             })
             planillaId = planilla.id
         }
 
-        // Asignar items a la planilla
         await prisma.correspondencia.updateMany({
             where: { id: { in: items.map(i => i.id) } },
             data: { planillaId }
@@ -54,11 +85,13 @@ export async function closePlanillaAction(id: number) {
 
         await prisma.planilla.update({ where: { id }, data: { estado: "CERRADA" } })
         
-        // La correspondencia saliente también se debe poder agregar a una planilla y cuando se cierra la planilla, se termina el proceso para la correspondencia saliente (estado = ENTREGADA).
-        await prisma.correspondencia.updateMany({
-            where: { planillaId: id, tipo: "SALIENTE" },
-            data: { estado: "ENTREGADA", fechaEntrega: new Date() }
-        })
+        // La correspondencia saliente, al cerrar la planilla, finaliza el proceso (estado = ENTREGADA)
+        if (planilla.tipo === "SALIENTE") {
+            await prisma.correspondencia.updateMany({
+                where: { planillaId: id, tipo: "SALIENTE" },
+                data: { estado: "ENTREGADA", fechaEntrega: new Date() }
+            })
+        }
 
         revalidatePath("/planillas")
         revalidatePath(`/planillas/${id}`)
@@ -78,19 +111,23 @@ export async function reopenPlanillaAction(id: number) {
         if (!planilla) return { error: "Planilla no encontrada" }
         if (planilla.estado !== "CERRADA") return { error: "Solo se pueden reabrir planillas en estado CERRADA" }
 
-        // Verificar que no esté en un recorrido iniciado
-        const recorridoActivo = planilla.recorridoPlanillas.find(
-            rp => rp.recorrido.estado === "INICIADO"
-        )
-        if (recorridoActivo) return { error: "No se puede reabrir: está en un recorrido iniciado" }
+        // Solo planillas entrantes pueden estar en un recorrido
+        if (planilla.tipo === "ENTRANTE") {
+            const recorridoActivo = planilla.recorridoPlanillas.find(
+                rp => rp.recorrido.estado === "INICIADO"
+            )
+            if (recorridoActivo) return { error: "No se puede reabrir: está en un recorrido iniciado" }
+        }
 
         await prisma.planilla.update({ where: { id }, data: { estado: "GENERADA" } })
 
         // Revertir correspondencia saliente a POR_ENTREGAR
-        await prisma.correspondencia.updateMany({
-            where: { planillaId: id, tipo: "SALIENTE" },
-            data: { estado: "POR_ENTREGAR", fechaEntrega: null }
-        })
+        if (planilla.tipo === "SALIENTE") {
+            await prisma.correspondencia.updateMany({
+                where: { planillaId: id, tipo: "SALIENTE" },
+                data: { estado: "POR_ENTREGAR", fechaEntrega: null }
+            })
+        }
 
         revalidatePath("/planillas")
         revalidatePath(`/planillas/${id}`)
@@ -133,6 +170,7 @@ export async function processPlanillaAction(id: number) {
     try {
         const planilla = await prisma.planilla.findUnique({ where: { id } })
         if (!planilla) return { error: "Planilla no encontrada" }
+        if (planilla.tipo === "SALIENTE") return { error: "Las planillas salientes no se procesan mediante recorridos" }
         if (planilla.estado !== "CERRADA") return { error: "La planilla debe estar cerrada para procesarla" }
 
         await prisma.planilla.update({ where: { id }, data: { estado: "PROCESADA" } })
@@ -169,5 +207,54 @@ export async function processPlanillaAction(id: number) {
     } catch (error) {
         console.error(error)
         return { error: "Error al procesar la planilla" }
+    }
+}
+
+export async function uploadPlanillaFirmaAction(id: number, formData: FormData) {
+    const { promises: fs } = require("fs")
+    const path = require("path")
+
+    try {
+        const planilla = await prisma.planilla.findUnique({ where: { id } })
+        if (!planilla) return { error: "Planilla no encontrada" }
+        if (planilla.tipo !== "SALIENTE") return { error: "Solo las planillas salientes admiten documento de firma" }
+
+        const firmaFile = formData.get("firmaFile") as File | null
+        if (!firmaFile || firmaFile.size === 0) return { error: "No se seleccionó ningún archivo" }
+
+        // Obtener configuración de empresa para la carpeta externa
+        const config = await prisma.empresaConfig.findFirst()
+        const uploadsDirParam = config?.uploadsDir
+
+        let baseUploadsDir = uploadsDirParam || path.join(process.cwd(), "public", "uploads")
+        if (!path.isAbsolute(baseUploadsDir)) {
+            baseUploadsDir = path.resolve(process.cwd(), baseUploadsDir)
+        }
+
+        await fs.mkdir(baseUploadsDir, { recursive: true })
+
+        const filename = `planilla-firma-${id}-${Date.now()}-${firmaFile.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
+        const filePath = path.join(baseUploadsDir, filename)
+
+        const arrayBuffer = await firmaFile.arrayBuffer()
+        await fs.writeFile(filePath, Buffer.from(arrayBuffer))
+
+        let documentoFirmaUrl: string
+        if (uploadsDirParam) {
+            documentoFirmaUrl = `/api/uploads?filename=${encodeURIComponent(filename)}`
+        } else {
+            documentoFirmaUrl = `/uploads/${filename}`
+        }
+
+        await prisma.planilla.update({
+            where: { id },
+            data: { documentoFirmaUrl }
+        })
+
+        revalidatePath(`/planillas/${id}`)
+        return { success: true, documentoFirmaUrl }
+    } catch (error) {
+        console.error(error)
+        return { error: "Error al subir el documento de firma" }
     }
 }

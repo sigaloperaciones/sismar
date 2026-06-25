@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { closePlanillaAction, reopenPlanillaAction } from "@/app/actions/panillas"
 import { Lock, Unlock } from "lucide-react"
 
-export default function PlanillaStatusButton({ planillaId, estado }: { planillaId: number; estado: string }) {
+export default function PlanillaStatusButton({ planillaId, estado, tipo }: { planillaId: number; estado: string; tipo?: string }) {
     const [isPending, startTransition] = useTransition()
     const [error, setError] = useState("")
 

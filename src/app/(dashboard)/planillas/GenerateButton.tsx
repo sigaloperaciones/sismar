@@ -4,14 +4,14 @@ import { useState, useTransition } from "react"
 import { generatePlanillaAction } from "@/app/actions/panillas"
 import { ClipboardPlus, Plus } from "lucide-react"
 
-export default function GenerateButton({ agenciaId }: { agenciaId: number }) {
+export default function GenerateButton({ agenciaId = null, tipo = "ENTRANTE" }: { agenciaId?: number | null, tipo?: "ENTRANTE" | "SALIENTE" }) {
     const [isPending, startTransition] = useTransition()
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
     function handleClick() {
         setMessage(null)
         startTransition(async () => {
-            const result = await generatePlanillaAction(agenciaId)
+            const result = await generatePlanillaAction(agenciaId, tipo)
             if (result.error) {
                 setMessage({ type: "error", text: result.error })
             } else if (result.success) {

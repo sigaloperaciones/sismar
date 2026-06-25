@@ -14,7 +14,7 @@ export default async function NuevoUsuarioPage() {
             <UserForm
                 agencias={agencias}
                 mode="create"
-                onSubmit={(formData) => createUserAction(null, formData)}
+                onSubmit={createUserAction}
             />
         </div>
     )

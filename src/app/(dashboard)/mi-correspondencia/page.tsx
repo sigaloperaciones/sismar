@@ -26,7 +26,7 @@ export default async function MiCorrespondenciaPage() {
                     <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
                         <Inbox className="w-5 h-5" />
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-900">Mi Correspondencia</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">Mis Planillas</h1>
                 </div>
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-amber-800 text-sm">
                     Su usuario no tiene una agencia asignada. Contacte al administrador.
@@ -48,7 +48,7 @@ export default async function MiCorrespondenciaPage() {
                         <Inbox className="w-5 h-5" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Mi Correspondencia</h1>
+                        <h1 className="text-2xl font-bold text-gray-900">Mis Planillas</h1>
                         <p className="text-sm text-gray-500">{usuario.agencia.name}</p>
                     </div>
                 </div>
@@ -94,7 +94,7 @@ export default async function MiCorrespondenciaPage() {
                     <Inbox className="w-5 h-5" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Mi Correspondencia</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">Mis Planillas</h1>
                     <p className="text-sm text-gray-500">
                         {usuario.agencia.name} · Recorrido #{recorridoActivo.id}
                     </p>

@@ -25,8 +25,8 @@ export default async function RecorridosPage() {
 
     // Contar planillas abiertas y cerradas
     const [planillasAbiertas, planillasCerradas] = await Promise.all([
-        prisma.planilla.count({ where: { estado: "GENERADA" } }),
-        prisma.planilla.count({ where: { estado: "CERRADA" } }),
+        prisma.planilla.count({ where: { estado: "GENERADA", tipo: "ENTRANTE" } }),
+        prisma.planilla.count({ where: { estado: "CERRADA", tipo: "ENTRANTE" } }),
     ])
 
     // Transformar datos del recorrido activo para el cliente
@@ -53,10 +53,11 @@ export default async function RecorridosPage() {
 
         for (const rp of recorridoActivoDB.planillas) {
             const agenciaId = rp.planilla.agenciaId
+            if (agenciaId == null) continue // Solo planillas entrantes (con agencia) en recorridos
             if (!agenciasMap.has(agenciaId)) {
                 agenciasMap.set(agenciaId, {
                     id: agenciaId,
-                    name: rp.planilla.agencia.name,
+                    name: rp.planilla.agencia?.name ?? "Sin agencia",
                     planillas: []
                 })
             }
