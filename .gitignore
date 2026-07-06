@@ -43,3 +43,12 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Base de datos local (nunca versionar)
+*.db
+*.db-journal
+prisma/*.db
+prisma/*.db-journal
+
+# Logs del servidor de desarrollo
+dev-server.log
