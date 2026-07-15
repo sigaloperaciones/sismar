@@ -141,24 +141,6 @@ export default function LoginPage() {
                         </button>
                     </form>
 
-                    {/* Credenciales de prueba */}
-                    <div className="border border-gray-200 rounded-lg p-4 bg-white">
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Credenciales de prueba</p>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                            {[
-                                { user: "admin", pass: "123456", rol: "Administrador" },
-                                { user: "mensajero", pass: "123456", rol: "Mensajero" },
-                                { user: "gerencia", pass: "123456", rol: "Agencia" },
-                                { user: "talento", pass: "123456", rol: "Agencia" },
-                            ].map((c) => (
-                                <div key={c.user} className="bg-slate-50 rounded-md p-2">
-                                    <p className="font-mono font-semibold text-gray-800">{c.user}</p>
-                                    <p className="font-mono text-gray-500 text-xs">{c.pass}</p>
-                                    <p className="text-blue-600 text-xs mt-0.5">{c.rol}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

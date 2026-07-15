@@ -1,11 +1,14 @@
 "use server"
 
+import { requireSession, requirePermission } from "@/lib/auth-guard"
+
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { getSession } from "@/lib/auth"
 
 // ── Crear / Iniciar Recorrido ─────────────────────────────────────────────────
 export async function createRecorridoAction(tipo: string, notas: string) {
+    await requirePermission('recorridos.gestionar')
     try {
         const session = await getSession()
 
@@ -76,6 +79,7 @@ export async function createRecorridoAction(tipo: string, notas: string) {
 
 // ── Anular Recorrido ──────────────────────────────────────────────────────────
 export async function anularRecorridoAction(id: number) {
+    await requirePermission('recorridos.gestionar')
     try {
         const recorrido = await prisma.recorrido.findUnique({
             where: { id },
@@ -104,6 +108,7 @@ export async function anularRecorridoAction(id: number) {
 
 // ── Aprobar / Devolver Correspondencia ────────────────────────────────────────
 export async function aprobarCorrespondenciaAction(id: number) {
+    await requireSession()
     try {
         await prisma.correspondencia.update({
             where: { id },
@@ -119,6 +124,7 @@ export async function aprobarCorrespondenciaAction(id: number) {
 }
 
 export async function devolverCorrespondenciaAction(id: number, observacion: string) {
+    await requireSession()
     try {
         if (!observacion.trim()) return { error: "Debe ingresar una observación" }
         await prisma.correspondencia.update({
@@ -136,10 +142,12 @@ export async function devolverCorrespondenciaAction(id: number, observacion: str
 
 // ── Acciones de Recorrido (compatibilidad legacy) ─────────────────────────────
 export async function confirmDeliveryAction(id: number) {
+    await requireSession()
     return aprobarCorrespondenciaAction(id)
 }
 
 export async function returnCorrespondenceAction(id: number, observation: string) {
+    await requireSession()
     return devolverCorrespondenciaAction(id, observation)
 }
 
@@ -189,6 +197,7 @@ async function sendRecorridoEmails(recorridoId: number) {
 
 // ── Verificar Planillas Sin Cerrar ────────────────────────────────────────────
 export async function checkPlanillasAbiertas() {
+    await requireSession()
     try {
         const planillasAbiertas = await prisma.planilla.count({
             where: { estado: "GENERADA", tipo: "ENTRANTE" }

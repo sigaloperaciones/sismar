@@ -1,10 +1,13 @@
 "use server"
 
+import { requireSession, requirePermission } from "@/lib/auth-guard"
+
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { revalidatePath } from "next/cache"
 
 export async function registerIncomingMail(prevState: unknown, formData: FormData) {
+    await requirePermission('correspondencia.entrante.crear')
     try {
         const empresaMensajeria = formData.get("empresaMensajeria") as string
         const remitenteNombre = formData.get("remitenteNombre") as string
@@ -73,6 +76,7 @@ export async function registerIncomingMail(prevState: unknown, formData: FormDat
 }
 
 export async function registerOutgoingMail(prevState: unknown, formData: FormData) {
+    await requirePermission('correspondencia.saliente.crear')
     try {
         const agenciaId = parseInt(formData.get("agenciaId") as string)
         const empresaMensajeria = formData.get("empresaMensajeria") as string
@@ -176,6 +180,7 @@ export async function registerOutgoingMail(prevState: unknown, formData: FormDat
 }
 
 export async function updateMailAction(prevState: unknown, formData: FormData) {
+    await requireSession()
     const { promises: fs } = require("fs")
     const path = require("path")
 

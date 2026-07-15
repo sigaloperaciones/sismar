@@ -24,7 +24,7 @@ Compromisos:
 
 | Pulso | Alcance | Hallazgos | Estado |
 |-------|---------|-----------|--------|
-| 1 | Críticos | SEC-001 ✅, SEC-002, SEC-003, SEC-004 | EN CURSO |
+| 1 | Críticos | SEC-001 ✅, SEC-002 ✅, SEC-003 ✅, SEC-004 ✅ | **CERRADO** (15/07/2026) |
 | 2 | Altos | SEC-005 … SEC-010 | PENDIENTE |
 | 3 | Medios | SEC-011 … SEC-018 | PENDIENTE |
 | 4 | Bajos + verificación integral | SEC-019, SEC-020 + re-chequeo 20/20 | PENDIENTE |
@@ -46,26 +46,44 @@ Compromisos:
   aleatoriamente (`openssl rand`) por servidor y no coinciden con dicho placeholder.
 - **Evidencia:** commit `b55b4f8` (15/07/2026); `git ls-files | grep .env` → solo `.env.example`.
 
-### SEC-002 — Credenciales de prueba expuestas en página de login — ⏳ PLANIFICADO (Pulso 1)
+### SEC-002 — Credenciales de prueba expuestas en página de login — **✅ RESUELTO**
 - **Verificación ASIA:** Confirmado en `src/app/(auth)/login/page.tsx:149-152`.
-- **Remediación prevista:** eliminación del bloque de credenciales del componente
-  (no solo gate por `NODE_ENV`: se retira del código para que no exista en ningún bundle)
-  + rotación de las contraseñas de los usuarios semilla antes de exponer cualquier entorno.
-- **Evidencia:** _pendiente_
+- **Remediación:** el bloque de credenciales se **eliminó por completo** del componente
+  (más estricto que la recomendación de gate por `NODE_ENV`: el dato no existe en ningún
+  bundle). Test de regresión (`tests/security/no-hardcoded-credentials.test.ts`) que
+  escanea todo `src/` y falla si la contraseña semilla reaparece como literal.
+  La rotación de contraseñas de los usuarios semilla queda como paso obligatorio del
+  runbook antes de exponer cualquier entorno (RADAR).
+- **Evidencia:** test en verde; smoke E2E sobre build de producción: `GET /login` sin
+  ninguna ocurrencia de credenciales (verificado con curl y navegador). Commit del Pulso 1.
 
-### SEC-003 — Server actions sin autenticación ni autorización — ⏳ PLANIFICADO (Pulso 1)
+### SEC-003 — Server actions sin autenticación ni autorización — **✅ RESUELTO**
 - **Verificación ASIA:** Confirmado: `correspondencia.ts`, `catalogos.ts`, `panillas.ts`
   sin verificación de sesión; `recorridos.ts` parcial; solo `admin.ts` protegido.
-- **Remediación prevista:** guard `requireSession()` (y permisos granulares vía
-  `hasPermission()` existente en `permissions.ts`) al inicio de **todas** las server actions.
-  Tests unitarios que verifican rechazo sin sesión (rojo → verde).
-- **Evidencia:** _pendiente_
+- **Remediación:** nuevo guard central `src/lib/auth-guard.ts` con `requireSession()` y
+  `requirePermission(código)` (usa el sistema `Permiso/RolPermiso` existente). Se
+  protegieron las **25 server actions** de negocio:
+  - Con permiso granular: `registerIncomingMail` → `correspondencia.entrante.crear`;
+    `registerOutgoingMail` → `correspondencia.saliente.crear`; `generatePlanillaAction` →
+    `planillas.crear`; `createRecorridoAction`/`anularRecorridoAction` → `recorridos.gestionar`.
+  - Con sesión obligatoria: resto de acciones (aprobar/devolver las usa el rol AGENCIA,
+    que no posee `recorridos.gestionar`; catálogos no tiene códigos de permiso definidos —
+    granularidad adicional registrada en RADAR como mejora acordable).
+- **Evidencia:** tests unitarios de `requireSession` (rechazo sin cookie y con JWT
+  corrupto; retorno de payload con sesión válida) + test estático que exige guard en
+  el cuerpo de **cada** función exportada de las actions (falla si se añade una action
+  sin guard). Smoke E2E en build de producción: login `admin`, creación de empresa de
+  mensajería y registro de correspondencia entrante exitosos con los guards activos.
 
-### SEC-004 — API de uploads sin autenticación — ⏳ PLANIFICADO (Pulso 1)
+### SEC-004 — API de uploads sin autenticación — **✅ RESUELTO**
 - **Verificación ASIA:** Confirmado: el matcher del middleware excluye `/api`.
-- **Remediación prevista:** verificación explícita del JWT de sesión en
-  `GET /api/uploads` antes de servir cualquier archivo.
-- **Evidencia:** _pendiente_
+- **Remediación:** verificación explícita del JWT de sesión (cookie `session`) al inicio
+  de `GET /api/uploads`; sin token o con token inválido responde `401 Unauthorized`
+  antes de tocar el sistema de archivos.
+- **Evidencia:** tests automatizados (`401` sin cookie, `401` con JWT inválido, y con
+  sesión válida NO `401`) + smoke E2E sobre build de producción:
+  `curl /api/uploads?filename=doc.pdf` → `401`; misma petición autenticada → `400`
+  (directorio no configurado, comportamiento esperado).
 
 ### SEC-005 — `bcryptjs` y `cookie` en devDependencies — ⏳ PLANIFICADO (Pulso 2)
 - **Verificación ASIA:** Confirmado (`package.json:41-42`).

@@ -1,10 +1,13 @@
 "use server"
 
+import { requireSession } from "@/lib/auth-guard"
+
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 
 // ── Ciudades ──────────────────────────────────────────────────────────────────
 export async function createCiudadAction(prevState: unknown, formData: FormData) {
+    await requireSession()
     try {
         const codigo = (formData.get("codigo") as string)?.trim().toUpperCase()
         const nombre = (formData.get("nombre") as string)?.trim()
@@ -26,6 +29,7 @@ export async function createCiudadAction(prevState: unknown, formData: FormData)
 }
 
 export async function updateCiudadAction(id: number, prevState: unknown, formData: FormData) {
+    await requireSession()
     try {
         const codigo = (formData.get("codigo") as string)?.trim().toUpperCase()
         const nombre = (formData.get("nombre") as string)?.trim()
@@ -47,6 +51,7 @@ export async function updateCiudadAction(id: number, prevState: unknown, formDat
 }
 
 export async function deleteCiudadAction(id: number) {
+    await requireSession()
     try {
         await prisma.ciudad.delete({ where: { id } })
         revalidatePath("/admin/ciudades")
@@ -59,6 +64,7 @@ export async function deleteCiudadAction(id: number) {
 
 // ── Empresas Mensajería ───────────────────────────────────────────────────────
 export async function createEmpresaMensajeriaAction(prevState: unknown, formData: FormData) {
+    await requireSession()
     try {
         const nombre = (formData.get("nombre") as string)?.trim()
         const nombreMensajero = (formData.get("nombreMensajero") as string)?.trim() || null
@@ -79,6 +85,7 @@ export async function createEmpresaMensajeriaAction(prevState: unknown, formData
 }
 
 export async function updateEmpresaMensajeriaAction(id: number, prevState: unknown, formData: FormData) {
+    await requireSession()
     try {
         const nombre = (formData.get("nombre") as string)?.trim()
         const activo = formData.get("activo") === "true"
@@ -100,6 +107,7 @@ export async function updateEmpresaMensajeriaAction(id: number, prevState: unkno
 }
 
 export async function deleteEmpresaMensajeriaAction(id: number) {
+    await requireSession()
     try {
         await prisma.empresaMensajeria.delete({ where: { id } })
         revalidatePath("/admin/empresas-mensajeria")
@@ -112,6 +120,7 @@ export async function deleteEmpresaMensajeriaAction(id: number) {
 
 // ── Agencias ──────────────────────────────────────────────────────────────────
 export async function createAgenciaAction(prevState: unknown, formData: FormData) {
+    await requireSession()
     try {
         const name = (formData.get("name") as string)?.trim()
         const sedeId = parseInt(formData.get("sedeId") as string)
@@ -130,6 +139,7 @@ export async function createAgenciaAction(prevState: unknown, formData: FormData
 }
 
 export async function updateAgenciaAction(id: number, prevState: unknown, formData: FormData) {
+    await requireSession()
     try {
         const name = (formData.get("name") as string)?.trim()
         const sedeId = parseInt(formData.get("sedeId") as string)
@@ -148,6 +158,7 @@ export async function updateAgenciaAction(id: number, prevState: unknown, formDa
 }
 
 export async function deleteAgenciaAction(id: number) {
+    await requireSession()
     try {
         const hasUsers = await prisma.usuario.count({ where: { agenciaId: id } })
         if (hasUsers > 0) return { error: "No se puede eliminar: tiene usuarios asociados" }

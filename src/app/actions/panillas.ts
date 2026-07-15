@@ -1,9 +1,12 @@
 "use server"
 
+import { requireSession, requirePermission } from "@/lib/auth-guard"
+
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 
 export async function generatePlanillaAction(agenciaId: number | null, tipo: "ENTRANTE" | "SALIENTE" = "ENTRANTE") {
+    await requirePermission('planillas.crear')
     try {
         if (tipo === "SALIENTE") {
             // SALIENTE: no se agrupa por agencia, una sola planilla para toda la correspondencia saliente
@@ -78,6 +81,7 @@ export async function generatePlanillaAction(agenciaId: number | null, tipo: "EN
 }
 
 export async function closePlanillaAction(id: number) {
+    await requireSession()
     try {
         const planilla = await prisma.planilla.findUnique({ where: { id } })
         if (!planilla) return { error: "Planilla no encontrada" }
@@ -103,6 +107,7 @@ export async function closePlanillaAction(id: number) {
 }
 
 export async function reopenPlanillaAction(id: number) {
+    await requireSession()
     try {
         const planilla = await prisma.planilla.findUnique({
             where: { id },
@@ -139,6 +144,7 @@ export async function reopenPlanillaAction(id: number) {
 }
 
 export async function removeCorrespondenciaFromPlanillaAction(id: number) {
+    await requireSession()
     try {
         const item = await prisma.correspondencia.findUnique({
             where: { id },
@@ -167,6 +173,7 @@ export async function removeCorrespondenciaFromPlanillaAction(id: number) {
 }
 
 export async function processPlanillaAction(id: number) {
+    await requireSession()
     try {
         const planilla = await prisma.planilla.findUnique({ where: { id } })
         if (!planilla) return { error: "Planilla no encontrada" }
@@ -211,6 +218,7 @@ export async function processPlanillaAction(id: number) {
 }
 
 export async function uploadPlanillaFirmaAction(id: number, formData: FormData) {
+    await requireSession()
     const { promises: fs } = require("fs")
     const path = require("path")
 

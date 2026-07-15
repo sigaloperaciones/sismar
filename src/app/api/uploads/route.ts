@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { decrypt } from "@/lib/auth"
 import { promises as fs } from "fs"
 import path from "path"
 
 export async function GET(request: NextRequest) {
     try {
+        // SEC-004 (Auditoría FOSCAL): el middleware excluye /api, por lo que la
+        // autenticación debe verificarse explícitamente antes de servir archivos.
+        const sessionToken = request.cookies.get("session")?.value
+        if (!sessionToken) {
+            return new NextResponse("Unauthorized", { status: 401 })
+        }
+        try {
+            await decrypt(sessionToken)
+        } catch {
+            return new NextResponse("Unauthorized", { status: 401 })
+        }
+
         const { searchParams } = new URL(request.url)
         const filename = searchParams.get("filename")
 
