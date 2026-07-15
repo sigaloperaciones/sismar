@@ -207,9 +207,22 @@ Compromisos:
 - [x] Re-chequeo uno a uno de los 20 hallazgos (este documento).
 - [x] Ningún despliegue a pre-producción durante la remediación.
 
-**Resumen:** 19/20 hallazgos remediados y verificados; SEC-016 (pnpm) en discusión con el
-cliente como cambio controlado. Recomendación de AISerNet: **apto para retomar el despliegue
-a pre-producción** una vez rotadas las credenciales de los usuarios semilla (ver RADAR).
+**Resumen:** 19/20 hallazgos remediados y verificados; SEC-016 respondido como excepción
+justificada. Recomendación de AISerNet: **apto para retomar el despliegue a pre-producción**
+una vez rotadas las credenciales de los usuarios semilla.
+
+### Paso operativo — rotación de contraseñas de usuarios semilla
+Se incluye el script `prisma/rotate-passwords.ts`, que reemplaza la contraseña por defecto
+(`123456`) por una contraseña fuerte y aleatoria (16 caracteres, cumple la política SEC-020),
+con hash bcrypt (coste 12). Ejecutar en el servidor tras el primer arranque:
+
+```bash
+npx tsx prisma/rotate-passwords.ts            # rota admin, mensajero, gerencia, talento
+```
+
+Las nuevas contraseñas se muestran **una sola vez** en pantalla (no se escriben a disco ni a
+logs); deben guardarse en un gestor seguro. Verificado (E2E sobre PostgreSQL): tras la rotación,
+`123456` deja de ser válida y la nueva contraseña autentica correctamente.
 
 ---
 
