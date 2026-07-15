@@ -1,0 +1,4 @@
+# Los scripts de shell SIEMPRE con LF, aunque se editen en Windows.
+# Un CRLF en el shebang rompe la ejecución en el VPS Linux.
+*.sh text eol=lf
+deploy/setup-sismar.sh text eol=lf

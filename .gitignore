@@ -30,9 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files — .env.local contiene secretos y nunca debe commitearse
+# env files — contienen secretos y nunca deben commitearse.
+# En el VPS, deploy/setup-sismar.sh genera `.env` con los secretos reales
+# (Prisma CLI y Next.js lo leen). Solo `.env.example` se versiona.
+.env
 .env.local
 .env.*.local
+.env.docker
 # .env.example sí se debe versionar (no contiene secretos reales)
 
 # vercel
