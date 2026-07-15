@@ -23,7 +23,7 @@ export async function createCiudadAction(prevState: unknown, formData: FormData)
         revalidatePath("/admin/ciudades")
         return { success: true }
     } catch (e) {
-        console.error(e)
+        console.error(e instanceof Error ? e.message : String(e))
         return { error: "Error al crear la ciudad" }
     }
 }
@@ -45,7 +45,7 @@ export async function updateCiudadAction(id: number, prevState: unknown, formDat
         revalidatePath("/admin/ciudades")
         return { success: true }
     } catch (e) {
-        console.error(e)
+        console.error(e instanceof Error ? e.message : String(e))
         return { error: "Error al actualizar la ciudad" }
     }
 }
@@ -57,7 +57,7 @@ export async function deleteCiudadAction(id: number) {
         revalidatePath("/admin/ciudades")
         return { success: true }
     } catch (e) {
-        console.error(e)
+        console.error(e instanceof Error ? e.message : String(e))
         return { error: "Error al eliminar la ciudad" }
     }
 }
@@ -79,7 +79,7 @@ export async function createEmpresaMensajeriaAction(prevState: unknown, formData
         revalidatePath("/admin/empresas-mensajeria")
         return { success: true }
     } catch (e) {
-        console.error(e)
+        console.error(e instanceof Error ? e.message : String(e))
         return { error: "Error al crear la empresa" }
     }
 }
@@ -101,7 +101,7 @@ export async function updateEmpresaMensajeriaAction(id: number, prevState: unkno
         revalidatePath("/admin/empresas-mensajeria")
         return { success: true }
     } catch (e) {
-        console.error(e)
+        console.error(e instanceof Error ? e.message : String(e))
         return { error: "Error al actualizar la empresa" }
     }
 }
@@ -113,7 +113,7 @@ export async function deleteEmpresaMensajeriaAction(id: number) {
         revalidatePath("/admin/empresas-mensajeria")
         return { success: true }
     } catch (e) {
-        console.error(e)
+        console.error(e instanceof Error ? e.message : String(e))
         return { error: "Error al eliminar la empresa" }
     }
 }
@@ -133,7 +133,7 @@ export async function createAgenciaAction(prevState: unknown, formData: FormData
         revalidatePath("/admin/agencias")
         return { success: true }
     } catch (e) {
-        console.error(e)
+        console.error(e instanceof Error ? e.message : String(e))
         return { error: "Error al crear la agencia" }
     }
 }
@@ -152,7 +152,7 @@ export async function updateAgenciaAction(id: number, prevState: unknown, formDa
         revalidatePath("/admin/agencias")
         return { success: true }
     } catch (e) {
-        console.error(e)
+        console.error(e instanceof Error ? e.message : String(e))
         return { error: "Error al actualizar la agencia" }
     }
 }
@@ -170,7 +170,7 @@ export async function deleteAgenciaAction(id: number) {
         revalidatePath("/admin/agencias")
         return { success: true }
     } catch (e) {
-        console.error(e)
+        console.error(e instanceof Error ? e.message : String(e))
         return { error: "Error al eliminar la agencia" }
     }
 }

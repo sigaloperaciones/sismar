@@ -4,6 +4,7 @@ import { requireSession, requirePermission } from "@/lib/auth-guard"
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { saveUploadedFile } from "@/lib/uploads"
 
 export async function generatePlanillaAction(agenciaId: number | null, tipo: "ENTRANTE" | "SALIENTE" = "ENTRANTE") {
     await requirePermission('planillas.crear')
@@ -75,7 +76,7 @@ export async function generatePlanillaAction(agenciaId: number | null, tipo: "EN
         revalidatePath("/planillas")
         return { success: true, planillaId, wasExisting: !!existingPlanilla }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al generar planilla" }
     }
 }
@@ -101,7 +102,7 @@ export async function closePlanillaAction(id: number) {
         revalidatePath(`/planillas/${id}`)
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al cerrar la planilla" }
     }
 }
@@ -138,7 +139,7 @@ export async function reopenPlanillaAction(id: number) {
         revalidatePath(`/planillas/${id}`)
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al reabrir la planilla" }
     }
 }
@@ -167,7 +168,7 @@ export async function removeCorrespondenciaFromPlanillaAction(id: number) {
         revalidatePath(`/planillas/${oldPlanillaId}`)
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al retirar la correspondencia de la planilla" }
     }
 }
@@ -212,15 +213,13 @@ export async function processPlanillaAction(id: number) {
         revalidatePath("/mi-correspondencia")
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al procesar la planilla" }
     }
 }
 
 export async function uploadPlanillaFirmaAction(id: number, formData: FormData) {
     await requireSession()
-    const { promises: fs } = require("fs")
-    const path = require("path")
 
     try {
         const planilla = await prisma.planilla.findUnique({ where: { id } })
@@ -230,29 +229,10 @@ export async function uploadPlanillaFirmaAction(id: number, formData: FormData) 
         const firmaFile = formData.get("firmaFile") as File | null
         if (!firmaFile || firmaFile.size === 0) return { error: "No se seleccionó ningún archivo" }
 
-        // Obtener configuración de empresa para la carpeta externa
-        const config = await prisma.empresaConfig.findFirst()
-        const uploadsDirParam = config?.uploadsDir
-
-        let baseUploadsDir = uploadsDirParam || path.join(process.cwd(), "public", "uploads")
-        if (!path.isAbsolute(baseUploadsDir)) {
-            baseUploadsDir = path.resolve(process.cwd(), baseUploadsDir)
-        }
-
-        await fs.mkdir(baseUploadsDir, { recursive: true })
-
-        const filename = `planilla-firma-${id}-${Date.now()}-${firmaFile.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
-        const filePath = path.join(baseUploadsDir, filename)
-
-        const arrayBuffer = await firmaFile.arrayBuffer()
-        await fs.writeFile(filePath, Buffer.from(arrayBuffer))
-
-        let documentoFirmaUrl: string
-        if (uploadsDirParam) {
-            documentoFirmaUrl = `/api/uploads?filename=${encodeURIComponent(filename)}`
-        } else {
-            documentoFirmaUrl = `/uploads/${filename}`
-        }
+        // SEC-006/SEC-017: subida centralizada con whitelist de tipo y tamaño máximo
+        const saved = await saveUploadedFile(firmaFile, `planilla-firma-${id}-`)
+        if ("error" in saved) return { error: saved.error }
+        const documentoFirmaUrl = saved.url
 
         await prisma.planilla.update({
             where: { id },
@@ -262,7 +242,7 @@ export async function uploadPlanillaFirmaAction(id: number, formData: FormData) 
         revalidatePath(`/planillas/${id}`)
         return { success: true, documentoFirmaUrl }
     } catch (error) {
-        console.error(error)
+        console.error("Error al subir el documento de firma:", error instanceof Error ? error.message : String(error))
         return { error: "Error al subir el documento de firma" }
     }
 }

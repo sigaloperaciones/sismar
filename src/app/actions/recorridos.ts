@@ -29,11 +29,10 @@ export async function createRecorridoAction(tipo: string, notas: string) {
                 const nuevasPlanillas = await prisma.planilla.findMany({
                     where: { estado: "CERRADA", tipo: "ENTRANTE", id: { notIn: planillasEnRecorrido } }
                 })
-                for (const p of nuevasPlanillas) {
-                    await prisma.recorridoPlanilla.create({
-                        data: { recorridoId: recorridoActivo.id, planillaId: p.id }
-                    })
-                }
+                // SEC-018: una sola query en lugar de N inserts secuenciales
+                await prisma.recorridoPlanilla.createMany({
+                    data: nuevasPlanillas.map(p => ({ recorridoId: recorridoActivo.id, planillaId: p.id }))
+                })
                 revalidatePath("/recorridos")
                 return { success: true, recorridoId: recorridoActivo.id, wasExisting: true }
             }
@@ -59,11 +58,10 @@ export async function createRecorridoAction(tipo: string, notas: string) {
         })
 
         // Asociar planillas ENTRANTES CERRADAS al recorrido
-        for (const p of planillasCerradas) {
-            await prisma.recorridoPlanilla.create({
-                data: { recorridoId: recorrido.id, planillaId: p.id }
-            })
-        }
+        // SEC-018: una sola query en lugar de N inserts secuenciales
+        await prisma.recorridoPlanilla.createMany({
+            data: planillasCerradas.map(p => ({ recorridoId: recorrido.id, planillaId: p.id }))
+        })
 
 
         // Enviar emails a responsables de agencias
@@ -72,7 +70,7 @@ export async function createRecorridoAction(tipo: string, notas: string) {
         revalidatePath("/recorridos")
         return { success: true, recorridoId: recorrido.id, wasExisting: false }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al crear el recorrido" }
     }
 }
@@ -101,7 +99,7 @@ export async function anularRecorridoAction(id: number) {
         revalidatePath("/recorridos")
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al anular el recorrido" }
     }
 }
@@ -118,7 +116,7 @@ export async function aprobarCorrespondenciaAction(id: number) {
         revalidatePath("/recorridos")
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al aprobar la correspondencia" }
     }
 }
@@ -135,7 +133,7 @@ export async function devolverCorrespondenciaAction(id: number, observacion: str
         revalidatePath("/recorridos")
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al devolver la correspondencia" }
     }
 }
@@ -191,7 +189,7 @@ async function sendRecorridoEmails(recorridoId: number) {
             }
         }
     } catch (error) {
-        console.error("Error enviando emails:", error)
+        console.error("Error enviando emails:", error instanceof Error ? error.message : String(error))
     }
 }
 

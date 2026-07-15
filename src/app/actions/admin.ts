@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import * as bcrypt from "bcryptjs"
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
+import { empresaConfigSchema, createUserSchema, updateUserSchema } from "@/lib/schemas/admin"
 
 // ── Utilidad: verificar que el usuario es ADMIN ────────────────────────────────
 async function requireAdmin() {
@@ -12,18 +13,27 @@ async function requireAdmin() {
     if (!session || session.role !== "ADMIN") redirect("/")
 }
 
+/** Extrae el primer mensaje de error de un resultado Zod fallido. */
+function firstZodError(result: { error: { issues: Array<{ message: string }> } }): string {
+    return result.error.issues[0]?.message ?? "Datos inválidos"
+}
+
 // ── EmpresaConfig ─────────────────────────────────────────────────────────────
 export async function saveEmpresaConfigAction(prevState: unknown, formData: FormData) {
     await requireAdmin()
     try {
-        const nombre = formData.get("nombre") as string
-        const nit = formData.get("nit") as string
-        const logoUrl = formData.get("logoUrl") as string
-        const colorPrimary = formData.get("colorPrimary") as string
-        const colorSecondary = formData.get("colorSecondary") as string
-        const colorAccent = formData.get("colorAccent") as string
+        // SEC-007: validación real con el esquema Zod compartido con el formulario
+        const parsed = empresaConfigSchema.safeParse({
+            nombre: formData.get("nombre"),
+            nit: (formData.get("nit") as string) || undefined,
+            logoUrl: (formData.get("logoUrl") as string) || undefined,
+            colorPrimary: (formData.get("colorPrimary") as string) || undefined,
+            colorSecondary: (formData.get("colorSecondary") as string) || undefined,
+            colorAccent: (formData.get("colorAccent") as string) || undefined,
+        })
+        if (!parsed.success) return { error: firstZodError(parsed) }
 
-        if (!nombre) return { error: "El nombre de la empresa es requerido" }
+        const { nombre, nit, logoUrl, colorPrimary, colorSecondary, colorAccent } = parsed.data
 
         await prisma.empresaConfig.upsert({
             where: { id: 1 },
@@ -50,7 +60,7 @@ export async function saveEmpresaConfigAction(prevState: unknown, formData: Form
         revalidatePath("/", "layout") // Fuerza recarga del ThemeInjector
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al guardar la configuración" }
     }
 }
@@ -59,13 +69,18 @@ export async function saveEmpresaConfigAction(prevState: unknown, formData: Form
 export async function createUserAction(formData: FormData) {
     await requireAdmin()
     try {
-        const username = formData.get("username") as string
-        const password = formData.get("password") as string
-        const role = formData.get("role") as string
-        const agenciaIdRaw = formData.get("agenciaId") as string
-        const agenciaId = agenciaIdRaw ? parseInt(agenciaIdRaw) : undefined
+        // SEC-007: validación real con el esquema Zod compartido con el formulario
+        const parsed = createUserSchema.safeParse({
+            username: formData.get("username"),
+            password: formData.get("password"),
+            role: formData.get("role"),
+            agenciaId: (formData.get("agenciaId") as string) || undefined,
+        })
+        if (!parsed.success) return { error: firstZodError(parsed) }
 
-        if (!username || !password || !role) return { error: "Faltan campos obligatorios" }
+        const { username, password, role } = parsed.data
+        const agenciaIdRaw = parsed.data.agenciaId
+        const agenciaId = agenciaIdRaw ? parseInt(agenciaIdRaw) : undefined
 
         const exists = await prisma.usuario.findUnique({ where: { username } })
         if (exists) return { error: "El nombre de usuario ya existe" }
@@ -79,7 +94,7 @@ export async function createUserAction(formData: FormData) {
         revalidatePath("/admin/usuarios")
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al crear el usuario" }
     }
 }
@@ -87,13 +102,18 @@ export async function createUserAction(formData: FormData) {
 export async function updateUserAction(id: number, formData: FormData) {
     await requireAdmin()
     try {
-        const username = formData.get("username") as string
-        const password = formData.get("password") as string
-        const role = formData.get("role") as string
-        const agenciaIdRaw = formData.get("agenciaId") as string
-        const agenciaId = agenciaIdRaw ? parseInt(agenciaIdRaw) : undefined
+        // SEC-007: validación real con el esquema Zod compartido con el formulario
+        const parsed = updateUserSchema.safeParse({
+            username: formData.get("username"),
+            password: (formData.get("password") as string) || "",
+            role: formData.get("role"),
+            agenciaId: (formData.get("agenciaId") as string) || undefined,
+        })
+        if (!parsed.success) return { error: firstZodError(parsed) }
 
-        if (!username || !role) return { error: "Faltan campos obligatorios" }
+        const { username, password, role } = parsed.data
+        const agenciaIdRaw = parsed.data.agenciaId
+        const agenciaId = agenciaIdRaw ? parseInt(agenciaIdRaw) : undefined
 
         const data: Record<string, unknown> = {
             username,
@@ -110,7 +130,7 @@ export async function updateUserAction(id: number, formData: FormData) {
         revalidatePath("/admin/usuarios")
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al actualizar el usuario" }
     }
 }
@@ -127,7 +147,7 @@ export async function deleteUserAction(id: number) {
         revalidatePath("/admin/usuarios")
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al eliminar el usuario" }
     }
 }
@@ -170,7 +190,7 @@ export async function savePermissionMatrixAction(changes: PermissionMatrixChange
         revalidatePath("/admin/permisos")
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error(error instanceof Error ? error.message : String(error))
         return { error: "Error al guardar los permisos" }
     }
 }

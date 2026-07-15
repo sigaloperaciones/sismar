@@ -3,7 +3,7 @@
 **De:** AISerNet Company — Equipo ASIA (Arquitectura de Soluciones de Inteligencia Artificial)
 **Para:** FOSCAL — Equipo de Ciberseguridad
 **Referencia:** Auditoría SAST SISMAR del 14 de julio de 2026 (20 hallazgos: 4 críticos, 6 altos, 8 medios, 2 bajos)
-**Estado del documento:** EN CURSO — se actualiza con evidencia por cada hallazgo remediado.
+**Estado del documento:** CERRADO — 19/20 hallazgos remediados y verificados; SEC-016 en discusión con el cliente.
 
 ---
 
@@ -25,9 +25,9 @@ Compromisos:
 | Pulso | Alcance | Hallazgos | Estado |
 |-------|---------|-----------|--------|
 | 1 | Críticos | SEC-001 ✅, SEC-002 ✅, SEC-003 ✅, SEC-004 ✅ | **CERRADO** (15/07/2026) |
-| 2 | Altos | SEC-005 … SEC-010 | PENDIENTE |
-| 3 | Medios | SEC-011 … SEC-018 | PENDIENTE |
-| 4 | Bajos + verificación integral | SEC-019, SEC-020 + re-chequeo 20/20 | PENDIENTE |
+| 2 | Altos | SEC-005 … SEC-010 | **CERRADO** (15/07/2026) |
+| 3 | Medios | SEC-011 … SEC-018 (SEC-016 en discusión) | **CERRADO** (15/07/2026) |
+| 4 | Bajos + verificación integral | SEC-019, SEC-020 + re-chequeo 20/20 | **CERRADO** (15/07/2026) |
 
 ---
 
@@ -85,96 +85,121 @@ Compromisos:
   `curl /api/uploads?filename=doc.pdf` → `401`; misma petición autenticada → `400`
   (directorio no configurado, comportamiento esperado).
 
-### SEC-005 — `bcryptjs` y `cookie` en devDependencies — ⏳ PLANIFICADO (Pulso 2)
+### SEC-005 — `bcryptjs` y `cookie` en devDependencies — **✅ RESUELTO**
 - **Verificación ASIA:** Confirmado (`package.json:41-42`).
-- **Remediación prevista:** mover ambos a `dependencies` (`@types/bcryptjs` permanece en dev).
-- **Evidencia:** _pendiente_
+- **Remediación:** `bcryptjs` y `cookie` movidos a `dependencies`; `@types/bcryptjs`
+  permanece en `devDependencies`.
+- **Evidencia:** test `tests/security/package-deps.test.ts` (falla si vuelven a devDeps);
+  build de producción y `npm ci` correctos.
 
-### SEC-006 — Subida de archivos sin validación de tipo ni tamaño — ⏳ PLANIFICADO (Pulso 2)
+### SEC-006 — Subida de archivos sin validación de tipo ni tamaño — **✅ RESUELTO**
 - **Verificación ASIA:** Confirmado.
-- **Remediación prevista:** módulo central `src/lib/uploads.ts` con whitelist de MIME/extensión
-  (PDF, PNG, JPG) y tamaño máximo 10 MB. Resuelve también SEC-017 (duplicación).
-- **Evidencia:** _pendiente_
+- **Remediación:** módulo central `src/lib/uploads.ts` — `validateUploadFile()` con whitelist
+  de MIME (PDF/PNG/JPG), verificación de que la extensión corresponde al MIME, y tamaño
+  máximo de 10 MB. Todas las subidas pasan por `saveUploadedFile()` (resuelve también SEC-017).
+- **Evidencia:** 5 casos en `tests/security/uploads-validation.test.ts` (acepta válidos;
+  rechaza >10 MB, ejecutables, HTML y extensión/MIME incoherentes).
 
-### SEC-007 — Esquemas Zod definidos pero no usados en server actions — ⏳ PLANIFICADO (Pulso 2)
+### SEC-007 — Esquemas Zod definidos pero no usados en server actions — **✅ RESUELTO**
 - **Verificación ASIA:** Confirmado: 0 usos de `safeParse` en `actions/`.
-- **Remediación prevista:** `schema.safeParse()` en todas las server actions con manejo
-  de error homogéneo.
-- **Evidencia:** _pendiente_
+- **Remediación:** `safeParse()` integrado en `registerIncomingMail`, `registerOutgoingMail`
+  (esquemas de `correspondencia`) y en `saveEmpresaConfigAction`, `createUserAction`,
+  `updateUserAction` (esquemas de `admin`), con manejo de error homogéneo.
+- **Evidencia:** test estático `tests/security/zod-integration.test.ts` que exige `safeParse`
+  y el uso de cada esquema.
 
-### SEC-008 — Cookie de sesión sin atributos seguros — ⏳ PLANIFICADO (Pulso 2)
+### SEC-008 — Cookie de sesión sin atributos seguros — **✅ RESUELTO**
 - **Verificación ASIA:** Confirmado en `src/lib/auth.ts` (`updateSession`, `logout`).
-- **Remediación prevista:** `httpOnly + secure + sameSite: "lax" + path: "/"` en **todas**
-  las operaciones de cookie de sesión.
-- **Evidencia:** _pendiente_
+- **Remediación:** constante única `SESSION_COOKIE_OPTIONS` (`httpOnly + secure + sameSite:"lax"
+  + path:"/"`) aplicada en las **tres** operaciones: crear (login), refrescar (updateSession)
+  y limpiar (logout).
+- **Evidencia:** `tests/security/cookie-attrs.test.ts` verifica los atributos en refresh y clear.
 
-### SEC-009 — Sin rate limiting en login — ⏳ PLANIFICADO (Pulso 2)
+### SEC-009 — Sin rate limiting en login — **✅ RESUELTO**
 - **Verificación ASIA:** Confirmado (además ya constaba en el RADAR interno de AISerNet).
-- **Remediación prevista:** rate limiter en `loginAction` (máx. 5 intentos/minuto por
-  usuario/IP, en memoria para instancia única; anotada migración a Redis si se escala).
-- **Evidencia:** _pendiente_
+- **Remediación:** `src/lib/rate-limit.ts` (ventana fija, máx. 5 intentos/60s por usuario)
+  integrado en `loginAction`. Para despliegue multi-instancia se migrará a Redis (RADAR).
+- **Evidencia:** 4 tests unitarios (`rate-limit.test.ts`) + **verificación E2E decisiva**:
+  ruta temporal invocada 7 veces sobre el build de producción → permite 5, bloquea del 6º
+  (`allowed:false, retryAfterSeconds:60`); ruta temporal eliminada tras la prueba.
 
-### SEC-010 — SVG sin sanitización (XSS almacenado) — ⏳ PLANIFICADO (Pulso 2)
-- **Verificación ASIA:** Confirmado (`api/uploads/route.ts` sirve `image/svg+xml` inline).
-- **Remediación prevista:** SVG excluido de la whitelist de subida (SEC-006) y, como defensa
-  en profundidad, `Content-Disposition: attachment` para cualquier tipo no incluido en whitelist.
-- **Evidencia:** _pendiente_
+### SEC-010 — SVG sin sanitización (XSS almacenado) — **✅ RESUELTO**
+- **Verificación ASIA:** Confirmado (`api/uploads/route.ts` servía `image/svg+xml` inline).
+- **Remediación:** doble defensa — (1) SVG excluido de la whitelist de subida (SEC-006);
+  (2) `GET /api/uploads` solo sirve inline los tipos seguros (PDF/PNG/JPG/GIF); cualquier
+  otro se fuerza con `Content-Disposition: attachment` + `X-Content-Type-Options: nosniff`,
+  de modo que un SVG con `<script>` nunca se ejecuta.
+- **Evidencia:** `uploads-validation.test.ts` (SVG rechazado en subida) + inspección del handler.
 
-### SEC-011 — Falta Content-Security-Policy — ⏳ PLANIFICADO (Pulso 3)
-- **Remediación prevista:** header CSP en `next.config.ts` restringiendo scripts/estilos/imágenes.
-- **Evidencia:** _pendiente_
+### SEC-011 — Falta Content-Security-Policy — **✅ RESUELTO**
+- **Remediación:** header CSP en `next.config.ts` (`default-src 'self'`, `object-src 'none'`,
+  `frame-ancestors 'self'`, etc.).
+- **Evidencia:** `tests/security/headers.test.ts` + `curl -I` sobre producción muestra el header.
 
-### SEC-012 — Falta Strict-Transport-Security — ⏳ PLANIFICADO (Pulso 3)
-- **Remediación prevista:** `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`.
-- **Evidencia:** _pendiente_
+### SEC-012 — Falta Strict-Transport-Security — **✅ RESUELTO**
+- **Remediación:** `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`.
+- **Evidencia:** `headers.test.ts` + `curl -I` sobre producción muestra el header.
 
-### SEC-013 — Uso de `any` en funciones de autenticación — ⏳ PLANIFICADO (Pulso 3)
-- **Remediación prevista:** interfaz `SessionPayload` tipando `encrypt`/`decrypt`.
-- **Evidencia:** _pendiente_
+### SEC-013 — Uso de `any` en funciones de autenticación — **✅ RESUELTO**
+- **Remediación:** interfaz `SessionPayload` tipando `encrypt`, `decrypt`, `getSession`;
+  se eliminó `any`. El componente `LayoutWrapper` reutiliza el mismo tipo.
+- **Evidencia:** build de producción con TypeScript strict en verde.
 
-### SEC-014 — Bloques catch vacíos — ⏳ PLANIFICADO (Pulso 3)
-- **Verificación ASIA:** Confirmado (`correspondencia.ts:54,157,270`).
-- **Remediación prevista:** registro con `console.warn` (sin interrumpir el flujo).
-- **Evidencia:** _pendiente_
+### SEC-014 — Bloques catch vacíos — **✅ RESUELTO**
+- **Verificación ASIA:** Confirmado (`correspondencia.ts`).
+- **Remediación:** los `catch (e) {}` de parseo de anexos ahora registran con `console.warn`
+  (mensaje, sin interrumpir el flujo); lógica unificada en `buildAnexosCreate`.
+- **Evidencia:** revisión de código; sin `catch` vacíos en `src/`.
 
-### SEC-015 — `console.error` expone detalles internos — ⏳ PLANIFICADO (Pulso 3)
-- **Remediación prevista:** logging limitado a `error.message` en producción.
-- **Evidencia:** _pendiente_
+### SEC-015 — `console.error` expone detalles internos — **✅ RESUELTO**
+- **Remediación:** todo el logging de errores en `actions/` y `api/` se limitó a
+  `error.message` (no el objeto/stack completo).
+- **Evidencia:** revisión de código (`grep` sin `console.error(error)` crudo).
 
 ### SEC-016 — Se usa npm en vez de pnpm — 💬 EN DISCUSIÓN
 - **Posición ASIA:** el cambio de gestor de paquetes afecta la cadena de build y despliegue
   ya validada (scripts de aprovisionamiento con `npm ci`). Proponemos acordar con FOSCAL el
   alcance y momento de la migración para no introducir riesgo operativo durante la
   remediación de seguridad. Se ejecutará como cambio controlado independiente.
-- **Evidencia:** _pendiente de acuerdo_
+- **Evidencia:** _pendiente de acuerdo con el cliente._
 
-### SEC-017 — Lógica de upload duplicada — ⏳ PLANIFICADO (Pulso 3, junto a SEC-006)
-- **Remediación prevista:** extracción a `src/lib/uploads.ts` (única fuente de verdad).
-- **Evidencia:** _pendiente_
+### SEC-017 — Lógica de upload duplicada — **✅ RESUELTO**
+- **Remediación:** las 3 copias del código de subida se reemplazaron por
+  `saveUploadedFile()` de `src/lib/uploads.ts` (única fuente de verdad).
+- **Evidencia:** revisión de código; los tests de `uploads-validation` cubren el módulo único.
 
-### SEC-018 — Operaciones DB secuenciales en bucle (N+1) — ⏳ PLANIFICADO (Pulso 3)
-- **Remediación prevista:** `prisma.createMany()` en `recorridos.ts` y `seed.ts`.
-- **Evidencia:** _pendiente_
+### SEC-018 — Operaciones DB secuenciales en bucle (N+1) — **✅ RESUELTO**
+- **Remediación:** `prisma.recorridoPlanilla.createMany()` (2 bucles en `recorridos.ts`) y
+  `prisma.rolPermiso.createMany()` (`seed.ts`), una sola query por lote.
+- **Evidencia:** revisión de código; seed ejecutado correctamente sobre PostgreSQL.
 
-### SEC-019 — `Date.now()` como consecutivo puede colisionar — ⏳ PLANIFICADO (Pulso 4)
-- **Remediación prevista:** generación con CUID (o `@default(cuid())` en Prisma).
-- **Evidencia:** _pendiente_
+### SEC-019 — `Date.now()` como consecutivo puede colisionar — **✅ RESUELTO**
+- **Remediación:** `src/lib/consecutive.ts` — `generateConsecutive()` combina timestamp
+  (ordenable) con sufijo aleatorio (UUID) criptográfico. Usado en entrante y saliente.
+- **Evidencia:** `tests/security/consecutive.test.ts` (500 valores concurrentes, 0 colisiones).
 
-### SEC-020 — Contraseña mínima de solo 6 caracteres — ⏳ PLANIFICADO (Pulso 4)
-- **Remediación prevista:** mínimo 8 caracteres con complejidad (mayúscula, minúscula, número)
-  en `lib/schemas/admin.ts`, alineado con NIST.
-- **Evidencia:** _pendiente_
+### SEC-020 — Contraseña mínima de solo 6 caracteres — **✅ RESUELTO**
+- **Remediación:** política en `lib/schemas/admin.ts` — mínimo 8 caracteres con mayúscula,
+  minúscula y número (NIST). Aplica a creación y a cambio de contraseña.
+- **Evidencia:** `tests/security/password-policy.test.ts` (rechaza 6 chars y 8-sin-complejidad;
+  acepta complejas; el update permite vacío = "no cambiar").
 
 ---
 
-## 4. Verificación final (Gate BDD — al cierre)
+## 4. Verificación final (Gate BDD)
 
-- [ ] Suite de tests automatizados en verde (los guards de auth, validación de uploads,
-      esquemas Zod y atributos de cookie tienen test dedicado).
-- [ ] Build de producción sin errores.
-- [ ] Smoke E2E: login, módulos de correspondencia/planillas/admin operativos.
-- [ ] Re-chequeo uno a uno de los 20 hallazgos con evidencia adjunta.
-- [ ] Ningún despliegue a pre-producción antes del cierre de críticos y altos.
+- [x] **37 tests automatizados en verde** (auth guards, validación de uploads, esquemas Zod,
+      atributos de cookie, rate limit, headers, política de contraseñas, consecutivos).
+- [x] **Build de producción sin errores** (TypeScript strict).
+- [x] **Smoke E2E** sobre el build de producción: login `admin`, registro de correspondencia
+      con guards y validación Zod activos, `401` en uploads sin sesión, headers CSP/HSTS
+      presentes, rate limit bloqueando al 6º intento.
+- [x] Re-chequeo uno a uno de los 20 hallazgos (este documento).
+- [x] Ningún despliegue a pre-producción durante la remediación.
+
+**Resumen:** 19/20 hallazgos remediados y verificados; SEC-016 (pnpm) en discusión con el
+cliente como cambio controlado. Recomendación de AISerNet: **apto para retomar el despliegue
+a pre-producción** una vez rotadas las credenciales de los usuarios semilla (ver RADAR).
 
 ---
 

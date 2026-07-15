@@ -1,7 +1,8 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { encrypt } from "@/lib/auth"
+import { encrypt, SESSION_COOKIE_OPTIONS } from "@/lib/auth"
+import { checkRateLimit } from "@/lib/rate-limit"
 import * as bcrypt from "bcryptjs"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
@@ -12,6 +13,16 @@ export async function loginAction(formData: FormData) {
 
     if (!username || !password) {
         return { error: "Usuario y contraseña requeridos" }
+    }
+
+    // SEC-009 (Auditoría FOSCAL): protección contra fuerza bruta.
+    // Máx. 5 intentos por minuto por usuario. En despliegue multi-instancia,
+    // migrar a un backend compartido (Redis) — registrado en RADAR.
+    const rate = checkRateLimit(`login:${username.trim().toLowerCase()}`)
+    if (!rate.allowed) {
+        return {
+            error: `Demasiados intentos. Espere ${rate.retryAfterSeconds} segundos e intente de nuevo.`,
+        }
     }
 
     try {
@@ -42,14 +53,12 @@ export async function loginAction(formData: FormData) {
 
         const cookieStore = await cookies()
         cookieStore.set("session", session, {
+            ...SESSION_COOKIE_OPTIONS,
             expires,
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
         })
 
     } catch (error) {
-        console.error("Login error:", error)
+        console.error("Login error:", error instanceof Error ? error.message : String(error))
         return { error: "Error en el servidor" }
     }
 
@@ -58,6 +67,10 @@ export async function loginAction(formData: FormData) {
 
 export async function logoutAction() {
     const cookieStore = await cookies()
-    cookieStore.set("session", "", { expires: new Date(0) })
+    // SEC-008: la limpieza de la cookie usa los mismos atributos de seguridad.
+    cookieStore.set("session", "", {
+        ...SESSION_COOKIE_OPTIONS,
+        expires: new Date(0),
+    })
     redirect("/login")
 }

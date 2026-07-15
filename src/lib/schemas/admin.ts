@@ -9,16 +9,25 @@ export const empresaConfigSchema = z.object({
     colorAccent: z.string().optional(),
 })
 
+// SEC-020 (Auditoría FOSCAL): mínimo 8 caracteres con mayúscula, minúscula
+// y número (alineado a NIST). Aplica a creación y a cambio de contraseña.
+const passwordPolicy = z
+    .string()
+    .min(8, 'La contraseña debe tener al menos 8 caracteres')
+    .regex(/[a-z]/, 'La contraseña debe incluir al menos una minúscula')
+    .regex(/[A-Z]/, 'La contraseña debe incluir al menos una mayúscula')
+    .regex(/[0-9]/, 'La contraseña debe incluir al menos un número')
+
 export const createUserSchema = z.object({
     username: z.string().min(3, 'Mínimo 3 caracteres').max(30, 'Máximo 30 caracteres'),
-    password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
+    password: passwordPolicy,
     role: z.enum(['ADMIN', 'MENSAJERO', 'AGENCIA'], { error: 'Seleccione un rol válido' }),
     agenciaId: z.string().optional(),
 })
 
 export const updateUserSchema = z.object({
     username: z.string().min(3, 'Mínimo 3 caracteres').max(30, 'Máximo 30 caracteres'),
-    password: z.string().min(6, 'Mínimo 6 caracteres').optional().or(z.literal('')),
+    password: passwordPolicy.optional().or(z.literal('')),
     role: z.enum(['ADMIN', 'MENSAJERO', 'AGENCIA'], { error: 'Seleccione un rol válido' }),
     agenciaId: z.string().optional(),
 })

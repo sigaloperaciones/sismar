@@ -5,64 +5,90 @@ import { requireSession, requirePermission } from "@/lib/auth-guard"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { revalidatePath } from "next/cache"
+import { incomingMailSchema, outgoingMailSchema } from "@/lib/schemas/correspondencia"
+import { saveUploadedFile } from "@/lib/uploads"
+import { generateConsecutive } from "@/lib/consecutive"
+
+/** Extrae el primer mensaje de error de un resultado Zod fallido. */
+function firstZodError(result: { error: { issues: Array<{ message: string }> } }): string {
+    return result.error.issues[0]?.message ?? "Datos inválidos"
+}
+
+/**
+ * Construye la relación `anexos.create` a partir del FormData.
+ * (Única implementación — antes estaba triplicada; SEC-017.)
+ */
+function buildAnexosCreate(formData: FormData) {
+    const anexoTypes = formData.getAll("anexoType")
+    const anexoQuantities = formData.getAll("anexoQuantity")
+
+    return anexoTypes
+        .map((typeId, index) => {
+            const parsedId = parseInt(typeId as string)
+            if (isNaN(parsedId)) return null
+
+            let anexoDetalles = undefined
+            try {
+                const identsStr = formData.getAll("anexoIdentifiers")[index] as string
+                if (identsStr) {
+                    const idents = JSON.parse(identsStr) as string[]
+                    const validIdents = idents.filter(i => typeof i === "string" && i.trim() !== "")
+                    if (validIdents.length > 0) {
+                        anexoDetalles = {
+                            create: validIdents.map(identificador => ({ identificador }))
+                        }
+                    }
+                }
+            } catch (e) {
+                // SEC-014: no silenciar — registrar sin interrumpir el flujo
+                console.warn("Identificadores de anexo con formato inválido:", e instanceof Error ? e.message : String(e))
+            }
+
+            return {
+                tipoAnexoId: parsedId,
+                cantidad: parseInt(anexoQuantities[index] as string) || 1,
+                detalles: anexoDetalles
+            }
+        })
+        .filter(a => a !== null) as any
+}
 
 export async function registerIncomingMail(prevState: unknown, formData: FormData) {
     await requirePermission('correspondencia.entrante.crear')
     try {
-        const empresaMensajeria = formData.get("empresaMensajeria") as string
-        const remitenteNombre = formData.get("remitenteNombre") as string
-        const remitenteCiudad = formData.get("remitenteCiudad") as string
-        const agenciaId = parseInt(formData.get("agenciaId") as string)
-        const asunto = formData.get("asunto") as string
-        const importancia = formData.get("importancia") as string
-        const necesitaRespuesta = formData.get("necesitaRespuesta") === "on"
-
-        const anexoTypes = formData.getAll("anexoType")
-        const anexoQuantities = formData.getAll("anexoQuantity")
-
-        if (!empresaMensajeria || !remitenteNombre || !agenciaId || !asunto) {
-            return { error: "Faltan campos obligatorios" }
+        // SEC-007: validación real con el esquema Zod compartido con el formulario
+        const parsed = incomingMailSchema.safeParse({
+            empresaMensajeria: formData.get("empresaMensajeria"),
+            remitenteNombre: formData.get("remitenteNombre"),
+            remitenteCiudad: (formData.get("remitenteCiudad") as string) || undefined,
+            agenciaId: formData.get("agenciaId"),
+            asunto: formData.get("asunto"),
+            importancia: (formData.get("importancia") as string) || "NORMAL",
+            necesitaRespuesta: formData.get("necesitaRespuesta") === "on",
+        })
+        if (!parsed.success) {
+            return { error: firstZodError(parsed) }
+        }
+        const data = parsed.data
+        const agenciaId = parseInt(data.agenciaId)
+        if (isNaN(agenciaId)) {
+            return { error: "Debe seleccionar una agencia destinataria válida" }
         }
 
         await prisma.correspondencia.create({
             data: {
                 tipo: "ENTRANTE",
-                empresaMensajeria,
-                remitenteNombre,
-                remitenteCiudad: remitenteCiudad || null,
+                empresaMensajeria: data.empresaMensajeria,
+                remitenteNombre: data.remitenteNombre,
+                remitenteCiudad: data.remitenteCiudad || null,
                 agenciaId,
-                asunto,
-                importancia: importancia || "NORMAL",
-                necesitaRespuesta,
+                asunto: data.asunto,
+                importancia: data.importancia,
+                necesitaRespuesta: data.necesitaRespuesta ?? false,
                 estado: "POR_ENTREGAR",
-                consecutive: Date.now().toString(),
+                consecutive: generateConsecutive(),
                 anexos: {
-                    create: anexoTypes
-                        .map((typeId, index) => {
-                            const parsedId = parseInt(typeId as string)
-                            if (isNaN(parsedId)) return null
-
-                            let anexoDetalles = undefined
-                            try {
-                                const identsStr = formData.getAll("anexoIdentifiers")[index] as string
-                                if (identsStr) {
-                                    const idents = JSON.parse(identsStr) as string[]
-                                    const validIdents = idents.filter(i => typeof i === "string" && i.trim() !== "")
-                                    if (validIdents.length > 0) {
-                                        anexoDetalles = {
-                                            create: validIdents.map(identificador => ({ identificador }))
-                                        }
-                                    }
-                                }
-                            } catch (e) {}
-
-                            return {
-                                tipoAnexoId: parsedId,
-                                cantidad: parseInt(anexoQuantities[index] as string) || 1,
-                                detalles: anexoDetalles
-                            }
-                        })
-                        .filter(a => a !== null) as any,
+                    create: buildAnexosCreate(formData),
                 },
             },
         })
@@ -70,7 +96,7 @@ export async function registerIncomingMail(prevState: unknown, formData: FormDat
         revalidatePath("/correspondencia/entrante")
         return { success: true, message: "Correspondencia registrada correctamente" }
     } catch (error) {
-        console.error(error)
+        console.error("Error al registrar correspondencia:", error instanceof Error ? error.message : String(error))
         return { error: "Error al registrar correspondencia" }
     }
 }
@@ -78,95 +104,54 @@ export async function registerIncomingMail(prevState: unknown, formData: FormDat
 export async function registerOutgoingMail(prevState: unknown, formData: FormData) {
     await requirePermission('correspondencia.saliente.crear')
     try {
-        const agenciaId = parseInt(formData.get("agenciaId") as string)
-        const empresaMensajeria = formData.get("empresaMensajeria") as string
-        const destinatarioNombre = formData.get("destinatarioNombre") as string
-        const destinatarioCiudad = formData.get("destinatarioCiudad") as string
-        const asunto = formData.get("asunto") as string
-        const importancia = formData.get("importancia") as string
+        // SEC-007: validación real con el esquema Zod compartido con el formulario
+        const parsed = outgoingMailSchema.safeParse({
+            agenciaId: formData.get("agenciaId"),
+            empresaMensajeria: formData.get("empresaMensajeria"),
+            destinatarioNombre: formData.get("destinatarioNombre"),
+            destinatarioCiudad: (formData.get("destinatarioCiudad") as string) || undefined,
+            asunto: formData.get("asunto"),
+            importancia: (formData.get("importancia") as string) || "NORMAL",
+        })
+        if (!parsed.success) {
+            return { error: firstZodError(parsed) }
+        }
+        const data = parsed.data
+        const agenciaId = parseInt(data.agenciaId)
+        if (isNaN(agenciaId)) {
+            return { error: "Debe seleccionar la agencia de origen" }
+        }
 
         const mensajero = formData.get("mensajero") as string
         const numeroGuia = formData.get("numeroGuia") as string
-        let guiaUrl = null
+        let guiaUrl: string | null = null
 
+        // SEC-006/SEC-017: subida centralizada con whitelist de tipo y tamaño máximo
         const guiaFile = formData.get("guiaFile") as File | null
         if (guiaFile && guiaFile.size > 0 && guiaFile.name) {
-            const { promises: fs } = require("fs")
-            const path = require("path")
-            
-            const config = await prisma.empresaConfig.findFirst()
-            const uploadsDirParam = config?.uploadsDir
-
-            let baseUploadsDir = uploadsDirParam || path.join(process.cwd(), "public", "uploads")
-            if (!path.isAbsolute(baseUploadsDir)) {
-                baseUploadsDir = path.resolve(process.cwd(), baseUploadsDir)
-            }
-            await fs.mkdir(baseUploadsDir, { recursive: true })
-
-            const filename = `${Date.now()}-${guiaFile.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
-            const filePath = path.join(baseUploadsDir, filename)
-            
-            const arrayBuffer = await guiaFile.arrayBuffer()
-            const buffer = Buffer.from(arrayBuffer)
-            await fs.writeFile(filePath, buffer)
-
-            if (uploadsDirParam) {
-                guiaUrl = `/api/uploads?filename=${encodeURIComponent(filename)}`
-            } else {
-                guiaUrl = `/uploads/${filename}`
-            }
-        }
-
-        const anexoTypes = formData.getAll("anexoType")
-        const anexoQuantities = formData.getAll("anexoQuantity")
-
-        if (!agenciaId || !empresaMensajeria || !destinatarioNombre || !asunto) {
-            return { error: "Faltan campos obligatorios" }
+            const saved = await saveUploadedFile(guiaFile)
+            if ("error" in saved) return { error: saved.error }
+            guiaUrl = saved.url
         }
 
         await prisma.correspondencia.create({
             data: {
                 tipo: "SALIENTE",
                 agenciaId,
-                empresaMensajeria,
+                empresaMensajeria: data.empresaMensajeria,
                 // Para salientes: remitenteNombre almacena el destinatario externo
-                remitenteNombre: destinatarioNombre,
-                remitenteCiudad: destinatarioCiudad || null,
-                asunto,
-                importancia: importancia || "NORMAL",
+                remitenteNombre: data.destinatarioNombre,
+                remitenteCiudad: data.destinatarioCiudad || null,
+                asunto: data.asunto,
+                importancia: data.importancia,
                 necesitaRespuesta: false,
                 estado: "POR_ENTREGAR",
-                consecutive: "SAL-" + Date.now(),
+                consecutive: generateConsecutive("SAL-"),
                 mensajero: mensajero || null,
                 numeroGuia: numeroGuia || null,
                 guiaUrl: guiaUrl,
                 anexos: {
-                    create: anexoTypes
-                        .map((typeId, index) => {
-                            const parsedId = parseInt(typeId as string)
-                            if (isNaN(parsedId)) return null
-
-                            let anexoDetalles = undefined
-                            try {
-                                const identsStr = formData.getAll("anexoIdentifiers")[index] as string
-                                if (identsStr) {
-                                    const idents = JSON.parse(identsStr) as string[]
-                                    const validIdents = idents.filter(i => typeof i === "string" && i.trim() !== "")
-                                    if (validIdents.length > 0) {
-                                        anexoDetalles = {
-                                            create: validIdents.map(identificador => ({ identificador }))
-                                        }
-                                    }
-                                }
-                            } catch (e) {}
-
-                            return {
-                                tipoAnexoId: parsedId,
-                                cantidad: parseInt(anexoQuantities[index] as string) || 1,
-                                detalles: anexoDetalles
-                            }
-                        })
-                        .filter(a => a !== null) as any,
+                    create: buildAnexosCreate(formData),
                 },
             },
         })
@@ -174,15 +159,13 @@ export async function registerOutgoingMail(prevState: unknown, formData: FormDat
         revalidatePath("/correspondencia/saliente")
         return { success: true }
     } catch (error) {
-        console.error(error)
+        console.error("Error al registrar correspondencia saliente:", error instanceof Error ? error.message : String(error))
         return { error: "Error al registrar correspondencia saliente" }
     }
 }
 
 export async function updateMailAction(prevState: unknown, formData: FormData) {
     await requireSession()
-    const { promises: fs } = require("fs")
-    const path = require("path")
 
     try {
         const id = parseInt(formData.get("id") as string)
@@ -204,39 +187,15 @@ export async function updateMailAction(prevState: unknown, formData: FormData) {
         const numeroGuia = formData.get("numeroGuia") as string
         const empresaMensajeria = formData.get("empresaMensajeria") as string
         const mensajero = formData.get("mensajero") as string
-        
+
         let guiaUrl = formData.get("guiaUrl") as string || null
 
-        // Procesar archivo si existe
+        // SEC-006/SEC-017: subida centralizada con whitelist de tipo y tamaño máximo
         const guiaFile = formData.get("guiaFile") as File | null
         if (guiaFile && guiaFile.size > 0 && guiaFile.name) {
-            // Obtener configuración de empresa para la carpeta externa
-            const config = await prisma.empresaConfig.findFirst()
-            const uploadsDirParam = config?.uploadsDir
-
-            let baseUploadsDir = uploadsDirParam || path.join(process.cwd(), "public", "uploads")
-            // Resolver ruta absoluta si es relativa
-            if (!path.isAbsolute(baseUploadsDir)) {
-                baseUploadsDir = path.resolve(process.cwd(), baseUploadsDir)
-            }
-
-            // Asegurar que el directorio de uploads exista
-            await fs.mkdir(baseUploadsDir, { recursive: true })
-
-            const filename = `${Date.now()}-${guiaFile.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
-            const filePath = path.join(baseUploadsDir, filename)
-            
-            const arrayBuffer = await guiaFile.arrayBuffer()
-            const buffer = Buffer.from(arrayBuffer)
-            await fs.writeFile(filePath, buffer)
-
-            // Si es la ruta predeterminada de public, guardamos el path público relative /uploads/...
-            // Si es una ruta externa personalizada, guardamos la URL especial de API /api/uploads?filename=...
-            if (uploadsDirParam) {
-                guiaUrl = `/api/uploads?filename=${encodeURIComponent(filename)}`
-            } else {
-                guiaUrl = `/uploads/${filename}`
-            }
+            const saved = await saveUploadedFile(guiaFile)
+            if ("error" in saved) return { error: saved.error }
+            guiaUrl = saved.url
         }
 
         // Actualizar base de datos
@@ -250,37 +209,9 @@ export async function updateMailAction(prevState: unknown, formData: FormData) {
         }
 
         if (formData.has("anexoType") || formData.has("anexoQuantity")) {
-            const anexoTypes = formData.getAll("anexoType")
-            const anexoQuantities = formData.getAll("anexoQuantity")
-
             updateData.anexos = {
                 deleteMany: {}, // Delete all existing anexos
-                create: anexoTypes
-                    .map((typeId, index) => {
-                        const parsedId = parseInt(typeId as string)
-                        if (isNaN(parsedId)) return null
-
-                        let anexoDetalles = undefined
-                        try {
-                            const identsStr = formData.getAll("anexoIdentifiers")[index] as string
-                            if (identsStr) {
-                                const idents = JSON.parse(identsStr) as string[]
-                                const validIdents = idents.filter(i => typeof i === "string" && i.trim() !== "")
-                                if (validIdents.length > 0) {
-                                    anexoDetalles = {
-                                        create: validIdents.map(identificador => ({ identificador }))
-                                    }
-                                }
-                            }
-                        } catch (e) {}
-
-                        return {
-                            tipoAnexoId: parsedId,
-                            cantidad: parseInt(anexoQuantities[index] as string) || 1,
-                            detalles: anexoDetalles
-                        }
-                    })
-                    .filter(a => a !== null) as any,
+                create: buildAnexosCreate(formData),
             }
         }
 
@@ -336,8 +267,7 @@ export async function updateMailAction(prevState: unknown, formData: FormData) {
         revalidatePath("/reportes")
         return { success: true, message: "Correspondencia actualizada correctamente" }
     } catch (error) {
-        console.error("Error al actualizar la correspondencia:", error)
+        console.error("Error al actualizar la correspondencia:", error instanceof Error ? error.message : String(error))
         return { error: "Error al actualizar correspondencia" }
     }
 }
-

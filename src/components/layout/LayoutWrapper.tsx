@@ -1,11 +1,5 @@
 import { Sidebar } from "./Sidebar";
-
-interface SessionPayload {
-    userId: number;
-    username: string;
-    role: string;
-    agenciaId?: number;
-}
+import type { SessionPayload } from "@/lib/auth";
 
 export default function LayoutWrapper({
     children,

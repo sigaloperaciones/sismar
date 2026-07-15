@@ -115,14 +115,12 @@ async function main() {
         { rol: 'AGENCIA', codigo: 'reportes.ver', concedido: true },
     ]
 
-    for (const rp of rolPermisosData) {
-        const permisoId = permisoMap[rp.codigo]
-        if (permisoId) {
-            await prisma.rolPermiso.create({
-                data: { rol: rp.rol, permisoId, concedido: rp.concedido },
-            })
-        }
-    }
+    // SEC-018: una sola query en lugar de N inserts secuenciales
+    await prisma.rolPermiso.createMany({
+        data: rolPermisosData
+            .filter(rp => permisoMap[rp.codigo])
+            .map(rp => ({ rol: rp.rol, permisoId: permisoMap[rp.codigo], concedido: rp.concedido })),
+    })
 
     console.log('✅ Seed completado.')
 }
