@@ -3,7 +3,7 @@
 **De:** AISerNet Company — Equipo ASIA (Arquitectura de Soluciones de Inteligencia Artificial)
 **Para:** FOSCAL — Equipo de Ciberseguridad
 **Referencia:** Auditoría SAST SISMAR del 14 de julio de 2026 (20 hallazgos: 4 críticos, 6 altos, 8 medios, 2 bajos)
-**Estado del documento:** CERRADO — 19/20 hallazgos remediados y verificados; SEC-016 en discusión con el cliente.
+**Estado del documento:** CERRADO — 19/20 hallazgos remediados y verificados; SEC-016 se responde como excepción justificada (aceptación de riesgo), sujeta a confirmación del cliente.
 
 ---
 
@@ -26,7 +26,7 @@ Compromisos:
 |-------|---------|-----------|--------|
 | 1 | Críticos | SEC-001 ✅, SEC-002 ✅, SEC-003 ✅, SEC-004 ✅ | **CERRADO** (15/07/2026) |
 | 2 | Altos | SEC-005 … SEC-010 | **CERRADO** (15/07/2026) |
-| 3 | Medios | SEC-011 … SEC-018 (SEC-016 en discusión) | **CERRADO** (15/07/2026) |
+| 3 | Medios | SEC-011 … SEC-018 (SEC-016 = excepción justificada) | **CERRADO** (15/07/2026) |
 | 4 | Bajos + verificación integral | SEC-019, SEC-020 + re-chequeo 20/20 | **CERRADO** (15/07/2026) |
 
 ---
@@ -156,12 +156,22 @@ Compromisos:
   `error.message` (no el objeto/stack completo).
 - **Evidencia:** revisión de código (`grep` sin `console.error(error)` crudo).
 
-### SEC-016 — Se usa npm en vez de pnpm — 💬 EN DISCUSIÓN
-- **Posición ASIA:** el cambio de gestor de paquetes afecta la cadena de build y despliegue
-  ya validada (scripts de aprovisionamiento con `npm ci`). Proponemos acordar con FOSCAL el
-  alcance y momento de la migración para no introducir riesgo operativo durante la
-  remediación de seguridad. Se ejecutará como cambio controlado independiente.
-- **Evidencia:** _pendiente de acuerdo con el cliente._
+### SEC-016 — Se usa npm en vez de pnpm — **⚪ EXCEPCIÓN JUSTIFICADA (aceptación de riesgo)**
+- **Naturaleza del hallazgo:** es una **convención de herramienta**, no una vulnerabilidad.
+  npm es el gestor de paquetes oficial incluido en Node.js; una aplicación instalada con npm
+  no tiene menor postura de seguridad que una instalada con pnpm. El propio hallazgo se basa
+  en la presencia de `package-lock.json` (npm) en lugar de `pnpm-lock.yaml`.
+- **Decisión ASIA (acordada con la dirección de AISerNet):** se **mantiene npm**. Motivos:
+  (1) no cierra ningún vector de seguridad; (2) la cadena de build y despliegue de SISMAR ya
+  está validada extremo a extremo con `npm ci` / `npm run build`, incluida la coexistencia con
+  otro sistema en el mismo VPS; migrar introduciría riesgo operativo sin beneficio de seguridad.
+  El `package-lock.json` fija versiones exactas y garantiza instalaciones reproducibles, que es
+  el objetivo real del control.
+- **Solicitud a FOSCAL:** aceptar esta excepción. Si el uso de pnpm es un requisito contractual
+  firme, se planificará como cambio controlado independiente, fuera del alcance de esta
+  remediación de seguridad.
+- **Evidencia:** `package-lock.json` versionado (instalaciones reproducibles); pipeline de
+  despliegue documentado en `docs/DEPLOY_VPS_HOSTINGER_SISMAR.md`.
 
 ### SEC-017 — Lógica de upload duplicada — **✅ RESUELTO**
 - **Remediación:** las 3 copias del código de subida se reemplazaron por
