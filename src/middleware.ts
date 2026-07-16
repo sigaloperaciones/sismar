@@ -9,6 +9,20 @@ function getKey() {
     return new TextEncoder().encode(secret)
 }
 
+/**
+ * Construye una redirección usando el host/proto REALES del cliente.
+ * La app corre detrás de Caddy en 127.0.0.1, por lo que `request.url` apunta a
+ * `localhost:3002`. Debemos tomar el dominio del encabezado `Host` (que Caddy
+ * preserva) y el esquema de `X-Forwarded-Proto`, para no redirigir a localhost.
+ */
+function redirectTo(request: NextRequest, pathname: string) {
+    const host = request.headers.get('host') ?? request.nextUrl.host
+    const proto =
+        request.headers.get('x-forwarded-proto') ??
+        request.nextUrl.protocol.replace(':', '')
+    return NextResponse.redirect(`${proto}://${host}${pathname}`)
+}
+
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl
     const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p))
@@ -22,7 +36,7 @@ export async function middleware(request: NextRequest) {
                 const key = getKey()
                 const { payload } = await jwtVerify(sessionCookie, key, { algorithms: ['HS256'] })
                 if (payload?.userId) {
-                    return NextResponse.redirect(new URL('/', request.url))
+                    return redirectTo(request, '/')
                 }
             } catch {
                 // Token inválido — dejar acceder al login
@@ -33,7 +47,7 @@ export async function middleware(request: NextRequest) {
 
     // Rutas protegidas: sin sesión → redirigir al login
     if (!sessionCookie) {
-        return NextResponse.redirect(new URL('/login', request.url))
+        return redirectTo(request, '/login')
     }
 
     try {
@@ -41,7 +55,7 @@ export async function middleware(request: NextRequest) {
         const { payload } = await jwtVerify(sessionCookie, key, { algorithms: ['HS256'] })
 
         if (!payload?.userId) {
-            return NextResponse.redirect(new URL('/login', request.url))
+            return redirectTo(request, '/login')
         }
 
         // Renovar sesión (rolling expiration)
@@ -65,7 +79,7 @@ export async function middleware(request: NextRequest) {
         return response
     } catch {
         // Token inválido o expirado
-        const response = NextResponse.redirect(new URL('/login', request.url))
+        const response = redirectTo(request, '/login')
         response.cookies.set('session', '', { expires: new Date(0) })
         return response
     }
