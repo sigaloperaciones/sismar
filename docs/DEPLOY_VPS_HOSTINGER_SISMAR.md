@@ -264,8 +264,8 @@ Cada vez que haya cambios nuevos:
 # local:
 git push origin main
 # en el VPS:
-cd ~/sismar/SISMAR && git pull origin main
-npm ci && npx prisma migrate deploy && npm run build
+cd ~/sismar && git pull origin main
+npm install --no-audit --no-fund && npx prisma migrate deploy && npm run build
 pm2 restart sismar-app
 ```
 > **Nunca** re-ejecutar `npx tsx prisma/seed.ts` sobre la base ya poblada (ver RADAR).

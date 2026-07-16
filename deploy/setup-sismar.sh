@@ -43,7 +43,10 @@ export DATABASE_URL="postgresql://sismar:${POSTGRES_PASSWORD}@localhost:5433/sis
 export JWT_SECRET
 
 # ---- 3) Dependencias + migraciones -----------------------------------------
-npm ci
+#     Se usa `npm install` (no `npm ci`) para tolerar dependencias opcionales
+#     específicas de plataforma: el package-lock.json se genera en Windows y a
+#     `npm ci` (estricto) le faltan deps de Linux (p. ej. @emnapi/* de Tailwind).
+npm install --no-audit --no-fund
 npx prisma migrate deploy
 npx prisma generate
 
