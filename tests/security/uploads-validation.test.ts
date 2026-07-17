@@ -1,9 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 /**
  * SEC-006 / SEC-010 / SEC-017 (Auditoría FOSCAL) — Validación central de uploads.
  * Whitelist de tipos (PDF/PNG/JPG), tamaño máximo 10 MB, y SVG bloqueado (XSS).
  */
+
+// validateUploadFile es una función pura; evitamos cargar el cliente Prisma real
+// (que importa @/lib/uploads → ./prisma) y su init en frío, causa de flakiness.
+vi.mock('@/lib/prisma', () => ({ prisma: {} }))
 
 const MB = 1024 * 1024
 

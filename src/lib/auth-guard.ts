@@ -27,3 +27,15 @@ export async function requirePermission(code: string) {
     if (!allowed) redirect('/')
     return session
 }
+
+/**
+ * Exige sesión válida CON rol ADMIN. Para acciones de administración
+ * (parametrización, usuarios, permisos). El layout /admin ya protege la UI,
+ * pero las server actions son invocables directamente: la protección debe
+ * repetirse en la acción.
+ */
+export async function requireAdmin() {
+    const session = await requireSession()
+    if (session.role !== 'ADMIN') redirect('/')
+    return session
+}
