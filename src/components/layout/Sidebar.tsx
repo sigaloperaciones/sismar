@@ -27,14 +27,16 @@ import { Button } from "../ui/button";
 import { ModeToggle } from "../mode-toggle";
 import { logoutAction } from "@/app/actions/auth";
 
+// `permiso`: código requerido para ver el ítem (null = siempre visible).
+// Guardian (req. cliente #2): el menú refleja los permisos efectivos del usuario.
 const mainMenuItems = [
-    { name: "Inicio", href: "/", icon: Home },
-    { name: "Correspondencia Entrante", href: "/correspondencia/entrante", icon: InboxIcon },
-    { name: "Correspondencia Saliente", href: "/correspondencia/saliente", icon: Send },
-    { name: "Mis Planillas", href: "/mi-correspondencia", icon: ClipboardCheck },
-    { name: "Planillas", href: "/planillas", icon: FileText },
-    { name: "Recorridos", href: "/recorridos", icon: Truck },
-    { name: "Reportes", href: "/reportes", icon: BarChart3 },
+    { name: "Inicio", href: "/", icon: Home, permiso: null as string | null },
+    { name: "Correspondencia Entrante", href: "/correspondencia/entrante", icon: InboxIcon, permiso: "correspondencia.entrante.ver" },
+    { name: "Correspondencia Saliente", href: "/correspondencia/saliente", icon: Send, permiso: "correspondencia.saliente.ver" },
+    { name: "Mis Planillas", href: "/mi-correspondencia", icon: ClipboardCheck, permiso: null },
+    { name: "Planillas", href: "/planillas", icon: FileText, permiso: "planillas.ver" },
+    { name: "Recorridos", href: "/recorridos", icon: Truck, permiso: "recorridos.ver" },
+    { name: "Reportes", href: "/reportes", icon: BarChart3, permiso: "reportes.ver" },
 ];
 
 
@@ -52,10 +54,12 @@ const adminMenuItems = [
 interface SidebarProps {
     role: string;
     username: string;
+    permissions?: string[];
 }
 
-export function Sidebar({ role, username }: SidebarProps) {
+export function Sidebar({ role, username, permissions = [] }: SidebarProps) {
     const pathname = usePathname();
+    const permsSet = new Set(permissions);
     const [isOpen, setIsOpen] = useState(false);
     const [adminExpanded, setAdminExpanded] = useState(pathname.startsWith("/admin"));
 
@@ -87,6 +91,13 @@ export function Sidebar({ role, username }: SidebarProps) {
 
                             // Ocultar "Mi Correspondencia" para no-AGENCIA y no-ADMIN
                             if (item.href === "/mi-correspondencia" && role !== "AGENCIA" && role !== "ADMIN") {
+                                return null;
+                            }
+
+                            // Guardian (req. cliente #2): ocultar el módulo si el permiso
+                            // requerido no está en los permisos efectivos del usuario.
+                            // ADMIN ve todo; los ítems sin permiso asociado siempre se muestran.
+                            if (item.permiso && role !== "ADMIN" && !permsSet.has(item.permiso)) {
                                 return null;
                             }
 

@@ -1,10 +1,21 @@
 import { prisma } from "@/lib/prisma"
 import SalienteClient from "./SalienteClient"
 import { Send } from "lucide-react"
+import { requirePermission } from "@/lib/auth-guard"
+import { hasPermission } from "@/lib/permissions"
 
 export const revalidate = 0
 
 export default async function CorrespondenciaSalientePage() {
+    // Guardian (req. cliente #2): ver exige el permiso de lectura; registrar/completar
+    // exige el permiso de creación (se refleja en la UI y se re-verifica en la action).
+    const session = await requirePermission("correspondencia.saliente.ver")
+    const canCreate = await hasPermission(
+        session.userId as number,
+        session.role as string,
+        "correspondencia.saliente.crear"
+    )
+
     const agencias = await prisma.agencia.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } })
     const ciudades = await prisma.ciudad.findMany({ select: { nombre: true, departamento: true }, orderBy: { nombre: "asc" } })
     const empresas = await prisma.empresaMensajeria.findMany({ where: { activo: true }, select: { nombre: true, nombreMensajero: true }, orderBy: { nombre: "asc" } })
@@ -36,12 +47,13 @@ export default async function CorrespondenciaSalientePage() {
                 </div>
             </div>
 
-            <SalienteClient 
-                salientes={salientes} 
-                ciudades={ciudades} 
+            <SalienteClient
+                salientes={salientes}
+                ciudades={ciudades}
                 empresas={empresas}
                 agencias={agencias}
                 tiposAnexo={tiposAnexo}
+                canCreate={canCreate}
             />
         </div>
     )

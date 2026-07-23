@@ -9,6 +9,7 @@ import PrintButton from "../PrintButton"
 import PlanillaDetailStatusButton from "../PlanillaDetailStatusButton"
 import RemoveItemButton from "./RemoveItemButton"
 import UploadFirmaForm from "./UploadFirmaForm"
+import FirmaPreview from "./FirmaPreview"
 
 type PlanillaWithRelations = Prisma.PlanillaGetPayload<{
     include: {
@@ -141,9 +142,9 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
                                                 <Calendar className="w-3.5 h-3.5" />
                                                 <span>{format(planilla.fechaGeneracion, "dd 'de' MMMM yyyy, HH:mm", { locale: es })}</span>
                                             </div>
-                                            <div className="flex items-center gap-1.5 text-slate-300 print:text-gray-600">
+                                            <div className="flex items-center gap-1.5 text-slate-300 print:text-gray-600" title="Consecutivo interno único del sistema (identificador de la planilla)">
                                                 <Hash className="w-3.5 h-3.5" />
-                                                <span className="font-mono">Planilla #{planilla.id}</span>
+                                                <span className="font-mono">Consecutivo interno No. {planilla.id}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -242,9 +243,9 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
                                         <Calendar className="w-3.5 h-3.5" />
                                         <span>{format(planilla.fechaGeneracion, "dd 'de' MMMM yyyy, HH:mm", { locale: es })}</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5 text-slate-300 print:text-gray-600">
+                                    <div className="flex items-center gap-1.5 text-slate-300 print:text-gray-600" title="Consecutivo interno único del sistema (identificador de la planilla)">
                                         <Hash className="w-3.5 h-3.5" />
-                                        <span className="font-mono">Planilla #{planilla.id}</span>
+                                        <span className="font-mono">Consecutivo interno No. {planilla.id}</span>
                                     </div>
                                 </div>
                             </div>
@@ -357,6 +358,11 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
 
             {hasOutgoing && planilla.estado !== "GENERADA" && (
                 <UploadFirmaForm planillaId={planilla.id} currentUrl={planilla.documentoFirmaUrl} />
+            )}
+
+            {/* Req. cliente #4: previsualización del PDF/imagen de firma adjunto */}
+            {hasOutgoing && planilla.documentoFirmaUrl && (
+                <FirmaPreview url={planilla.documentoFirmaUrl} />
             )}
         </div>
     )

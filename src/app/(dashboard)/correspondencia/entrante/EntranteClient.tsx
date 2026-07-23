@@ -81,6 +81,7 @@ interface CorrespondenciaClientProps {
     empresas: Empresa[]
     agencias: Agencia[]
     tiposAnexo: TipoAnexo[]
+    canCreate?: boolean
 }
 
 export default function EntranteClient({
@@ -89,6 +90,7 @@ export default function EntranteClient({
     empresas,
     agencias,
     tiposAnexo,
+    canCreate = false,
 }: CorrespondenciaClientProps) {
     const router = useRouter()
     const { toast } = useToast()
@@ -150,13 +152,15 @@ export default function EntranteClient({
                     />
                 </div>
                 
-                <Button 
-                    onClick={() => { setSelectedMail(null); setIsModalOpen(true); }}
-                    className="w-full md:w-auto font-semibold flex items-center gap-2 px-5 py-2.5 rounded-xl shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-                >
-                    <Plus className="w-5 h-5" />
-                    Agregar Entrante
-                </Button>
+                {canCreate && (
+                    <Button
+                        onClick={() => { setSelectedMail(null); setIsModalOpen(true); }}
+                        className="w-full md:w-auto font-semibold flex items-center gap-2 px-5 py-2.5 rounded-xl shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                    >
+                        <Plus className="w-5 h-5" />
+                        Agregar Entrante
+                    </Button>
+                )}
             </div>
 
             {/* List Table */}
@@ -263,15 +267,19 @@ export default function EntranteClient({
                                                 </td>
                                             )}
                                             <td className="py-4 px-4 text-center">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handleOpenModal(mail)}
-                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border-gray-200 text-gray-700 hover:bg-slate-50 transition-all text-xs"
-                                                >
-                                                    <Edit2 className="w-3.5 h-3.5" />
-                                                    Completar
-                                                </Button>
+                                                {canCreate ? (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleOpenModal(mail)}
+                                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border-gray-200 text-gray-700 hover:bg-slate-50 transition-all text-xs"
+                                                    >
+                                                        <Edit2 className="w-3.5 h-3.5" />
+                                                        Completar
+                                                    </Button>
+                                                ) : (
+                                                    <span className="text-xs text-gray-300">—</span>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}

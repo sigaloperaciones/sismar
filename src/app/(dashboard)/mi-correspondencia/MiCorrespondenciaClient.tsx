@@ -5,8 +5,19 @@ import { aprobarCorrespondenciaAction, devolverCorrespondenciaAction } from "@/a
 import { processPlanillaAction } from "@/app/actions/panillas"
 import {
     CheckCircle, XCircle, RotateCcw, AlertTriangle, Package,
-    CheckCircle2, Clock, FileText, ChevronDown, ChevronUp
+    CheckCircle2, Clock, FileText, ChevronDown, ChevronUp, Paperclip, Hash
 } from "lucide-react"
+
+interface AnexoDetalle {
+    identificador: string
+}
+
+interface Anexo {
+    id: number
+    cantidad: number
+    tipoAnexo: { name: string }
+    detalles: AnexoDetalle[]
+}
 
 interface Correspondencia {
     id: number
@@ -18,6 +29,7 @@ interface Correspondencia {
     importancia: string
     estado: string
     consecutive: string | null
+    anexos?: Anexo[]
 }
 
 interface Planilla {
@@ -224,6 +236,11 @@ function CorrespondenciaItem({
                 <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800 line-clamp-2">{c.asunto}</p>
                     <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        {c.consecutive && (
+                            <span className="text-[10px] font-mono font-semibold text-gray-500 flex items-center gap-0.5 bg-gray-100 px-1.5 py-0.5 rounded">
+                                <Hash className="w-3 h-3" />{c.consecutive}
+                            </span>
+                        )}
                         {c.remitenteNombre && (
                             <span className="text-xs text-gray-500">De: {c.remitenteNombre}</span>
                         )}
@@ -238,6 +255,28 @@ function CorrespondenciaItem({
                             </span>
                         )}
                     </div>
+
+                    {/* Req. cliente #1: anexos y sus identificadores/consecutivos */}
+                    {c.anexos && c.anexos.length > 0 && (
+                        <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/60 p-2">
+                            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1 mb-1">
+                                <Paperclip className="w-3 h-3" /> Anexos ({c.anexos.length})
+                            </p>
+                            <ul className="space-y-1">
+                                {c.anexos.map((a) => (
+                                    <li key={a.id} className="text-xs text-gray-700">
+                                        <span className="font-semibold">{a.cantidad}</span> {a.tipoAnexo.name}
+                                        {a.detalles && a.detalles.length > 0 && (
+                                            <div className="text-[10px] text-gray-500 ml-2 mt-0.5 border-l border-gray-200 pl-2 break-words">
+                                                {a.detalles.map((d) => d.identificador).join(", ")}
+                                            </div>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
                     {err && <p className="text-red-500 text-xs mt-1">{err}</p>}
                 </div>
                 <div className="shrink-0">

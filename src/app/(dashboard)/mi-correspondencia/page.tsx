@@ -81,6 +81,16 @@ export default async function MiCorrespondenciaPage() {
                     importancia: true,
                     estado: true,
                     consecutive: true,
+                    // Req. cliente #1: los anexos y sus identificadores (p.ej. varias
+                    // facturas) deben poder visualizarse en la planilla de recibido.
+                    anexos: {
+                        select: {
+                            id: true,
+                            cantidad: true,
+                            tipoAnexo: { select: { name: true } },
+                            detalles: { select: { identificador: true } },
+                        },
+                    },
                 }
             }
         },

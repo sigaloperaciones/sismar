@@ -165,15 +165,20 @@ export async function registerOutgoingMail(prevState: unknown, formData: FormDat
 }
 
 export async function updateMailAction(prevState: unknown, formData: FormData) {
-    await requireSession()
+    // Guardian (req. cliente #2): "Completar/Editar" es parte del registro de
+    // correspondencia. DEBE exigir el permiso granular correspondiente al tipo,
+    // no basta con tener sesión. El guard va ANTES del try: requirePermission
+    // redirige con NEXT_REDIRECT y el catch genérico no debe interceptarlo.
+    const tipo = (formData.get("tipo") as string) || "ENTRANTE" // "ENTRANTE" | "SALIENTE"
+    await requirePermission(
+        tipo === "SALIENTE" ? "correspondencia.saliente.crear" : "correspondencia.entrante.crear"
+    )
 
     try {
         const id = parseInt(formData.get("id") as string)
         if (!id || isNaN(id)) {
             return { error: "ID inválido" }
         }
-
-        const tipo = formData.get("tipo") as string // "ENTRANTE" | "SALIENTE"
         const remitenteNombre = formData.get("remitenteNombre") as string
         const remitenteCiudad = formData.get("remitenteCiudad") as string
         const asunto = formData.get("asunto") as string
