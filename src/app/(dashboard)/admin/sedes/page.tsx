@@ -1,8 +1,15 @@
+import AccessDenied from "@/components/AccessDenied"
+import { requireAdminPage } from "@/lib/auth-guard"
 import { prisma } from "@/lib/prisma"
 import { Building } from "lucide-react"
 import SedesClient from "./SedesClient"
 
 export default async function SedesPage() {
+    // H-003 / R-028 (AC-016): guard PROPIO. Los layouts de Next no son frontera de
+    // seguridad (una petición RSC puede declararlos ya renderizados). El layout
+    // /admin queda como defensa adicional.
+    const auth = await requireAdminPage()
+    if (!auth.ok) return <AccessDenied permiso="rol ADMIN" />
     const sedes = await prisma.sede.findMany({
         orderBy: { name: "asc" },
         include: { _count: { select: { agencias: true } } },

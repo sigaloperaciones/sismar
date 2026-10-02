@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Ciclo de una pieza</title>
+<style>html,body{margin:0;padding:0;background:#fff}svg{display:block}</style></head>
+<body>
+<!-- Lienzo de 960 px para página vertical: 16 px aquí ≈ 8 pt impresos. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="820" viewBox="0 0 960 820" role="img"
+     aria-label="Ciclo de una pieza entrante y de una saliente en SISMAR, con el rol que actúa en cada paso"
+     font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1B3D3D"/>
+    </marker>
+    <g id="caja">
+      <rect width="276" height="128" rx="10" fill="#fff" stroke="#1B3D3D" stroke-width="1.8"/>
+    </g>
+  </defs>
+
+  <!-- ENTRANTE -->
+  <rect x="8" y="8" width="944" height="392" rx="14" fill="#F3F9F9" stroke="#C9DEDF"/>
+  <text x="28" y="44" font-size="22" font-weight="700" fill="#1B3D3D">ENTRANTE</text>
+  <text x="152" y="44" font-size="17" fill="#4A5D5D">llega de fuera y se entrega a una agencia</text>
+
+  <g font-size="17">
+    <!-- fila 1 -->
+    <g transform="translate(28,64)"><use href="#caja"/>
+      <text x="16" y="32" font-size="19" font-weight="700" fill="#1B3D3D">1. Registrar la pieza</text>
+      <text x="16" y="62" font-size="16" font-weight="600" fill="#0E6F78">AGENCIA o ADMIN</text>
+      <rect x="16" y="80" width="244" height="32" rx="16" fill="#EAF5F6"/>
+      <text x="138" y="102" font-size="16" text-anchor="middle" fill="#1B3D3D">Pieza: Pendiente</text></g>
+    <g transform="translate(342,64)"><use href="#caja"/>
+      <text x="16" y="32" font-size="19" font-weight="700" fill="#1B3D3D">2. Asignar a planilla</text>
+      <text x="16" y="62" font-size="16" font-weight="600" fill="#0E6F78">MENSAJERO o ADMIN</text>
+      <rect x="16" y="80" width="244" height="32" rx="16" fill="#EAF5F6"/>
+      <text x="138" y="102" font-size="16" text-anchor="middle" fill="#1B3D3D">Planilla: Generada</text></g>
+    <g transform="translate(656,64)"><use href="#caja"/>
+      <text x="16" y="32" font-size="19" font-weight="700" fill="#1B3D3D">3. Cerrar la planilla</text>
+      <text x="16" y="62" font-size="16" font-weight="600" fill="#0E6F78">MENSAJERO o ADMIN</text>
+      <rect x="16" y="80" width="244" height="32" rx="16" fill="#EAF5F6"/>
+      <text x="138" y="102" font-size="16" text-anchor="middle" fill="#1B3D3D">Planilla: Cerrada</text></g>
+    <!-- fila 2 -->
+    <g transform="translate(656,236)"><use href="#caja"/>
+      <text x="16" y="32" font-size="19" font-weight="700" fill="#1B3D3D">4. Iniciar recorrido</text>
+      <text x="16" y="62" font-size="16" font-weight="600" fill="#0E6F78">MENSAJERO o ADMIN</text>
+      <rect x="16" y="80" width="244" height="32" rx="16" fill="#EAF5F6"/>
+      <text x="138" y="102" font-size="16" text-anchor="middle" fill="#1B3D3D">Recorrido: En Curso</text></g>
+    <g transform="translate(342,236)"><use href="#caja"/>
+      <text x="16" y="32" font-size="19" font-weight="700" fill="#1B3D3D">5. Aprobar o devolver</text>
+      <text x="16" y="62" font-size="16" font-weight="600" fill="#0E6F78">AGENCIA · Mis Planillas</text>
+      <rect x="16" y="80" width="244" height="32" rx="16" fill="#EAF5F6"/>
+      <text x="138" y="102" font-size="16" text-anchor="middle" fill="#1B3D3D">Entregada o Devuelta</text></g>
+    <g transform="translate(28,236)">
+      <rect width="276" height="128" rx="10" fill="#1B3D3D"/>
+      <text x="16" y="32" font-size="19" font-weight="700" fill="#fff">6. Procesar la planilla</text>
+      <text x="16" y="62" font-size="16" font-weight="600" fill="#9FE3E8">AGENCIA · Mis Planillas</text>
+      <rect x="16" y="80" width="244" height="32" rx="16" fill="#2C5656"/>
+      <text x="138" y="102" font-size="16" text-anchor="middle" fill="#fff">Procesada (definitivo)</text></g>
+    <g stroke="#1B3D3D" stroke-width="2.2" fill="none" marker-end="url(#a)">
+      <line x1="304" y1="128" x2="338" y2="128"/>
+      <line x1="618" y1="128" x2="652" y2="128"/>
+      <path d="M794,192 L794,232"/>
+      <line x1="652" y1="300" x2="622" y2="300"/>
+      <line x1="338" y1="300" x2="308" y2="300"/>
+    </g>
+    <text x="28" y="388" font-size="15" fill="#4A5D5D">Cuando todas sus planillas quedan procesadas, el recorrido pasa solo a Terminado.</text>
+  </g>
+
+  <!-- SALIENTE -->
+  <rect x="8" y="420" width="944" height="392" rx="14" fill="#F7F8F6" stroke="#D6DAD3"/>
+  <text x="28" y="456" font-size="22" font-weight="700" fill="#1B3D3D">SALIENTE</text>
+  <text x="142" y="456" font-size="17" fill="#4A5D5D">una agencia la envía por una empresa de mensajería</text>
+
+  <g font-size="17">
+    <g transform="translate(28,476)"><use href="#caja"/>
+      <text x="16" y="32" font-size="19" font-weight="700" fill="#1B3D3D">1. Registrar con guía</text>
+      <text x="16" y="62" font-size="16" font-weight="600" fill="#0E6F78">AGENCIA o ADMIN</text>
+      <rect x="16" y="80" width="244" height="32" rx="16" fill="#EAF5F6"/>
+      <text x="138" y="102" font-size="16" text-anchor="middle" fill="#1B3D3D">Pieza: Pendiente (SAL-…)</text></g>
+    <g transform="translate(342,476)"><use href="#caja"/>
+      <text x="16" y="32" font-size="19" font-weight="700" fill="#1B3D3D">2. Asignar a planilla</text>
+      <text x="16" y="62" font-size="16" font-weight="600" fill="#0E6F78">MENSAJERO o ADMIN</text>
+      <rect x="16" y="80" width="244" height="32" rx="16" fill="#EAF5F6"/>
+      <text x="138" y="102" font-size="16" text-anchor="middle" fill="#1B3D3D">Una para todas las agencias</text></g>
+    <g transform="translate(656,476)"><use href="#caja"/>
+      <text x="16" y="32" font-size="19" font-weight="700" fill="#1B3D3D">3. Imprimir y firmar</text>
+      <text x="16" y="62" font-size="16" font-weight="600" fill="#0E6F78">MENSAJERO o ADMIN</text>
+      <rect x="16" y="80" width="244" height="32" rx="16" fill="#EAF5F6"/>
+      <text x="138" y="102" font-size="16" text-anchor="middle" fill="#1B3D3D">Una hoja por empresa</text></g>
+    <g transform="translate(656,648)"><use href="#caja"/>
+      <text x="16" y="32" font-size="19" font-weight="700" fill="#1B3D3D">4. Cerrar la planilla</text>
+      <text x="16" y="62" font-size="16" font-weight="600" fill="#0E6F78">MENSAJERO o ADMIN</text>
+      <rect x="16" y="80" width="244" height="32" rx="16" fill="#EAF5F6"/>
+      <text x="138" y="102" font-size="16" text-anchor="middle" fill="#1B3D3D">Piezas: Entregadas</text></g>
+    <g transform="translate(342,648)">
+      <rect width="276" height="128" rx="10" fill="#1B3D3D"/>
+      <text x="16" y="32" font-size="19" font-weight="700" fill="#fff">5. Subir la firma</text>
+      <text x="16" y="62" font-size="16" font-weight="600" fill="#9FE3E8">MENSAJERO o ADMIN</text>
+      <rect x="16" y="80" width="244" height="32" rx="16" fill="#2C5656"/>
+      <text x="138" y="102" font-size="16" text-anchor="middle" fill="#fff">PDF, PNG o JPG ≤ 10 MB</text></g>
+    <g stroke="#1B3D3D" stroke-width="2.2" fill="none" marker-end="url(#a)">
+      <line x1="304" y1="540" x2="338" y2="540"/>
+      <line x1="618" y1="540" x2="652" y2="540"/>
+      <path d="M794,604 L794,644"/>
+      <line x1="652" y1="712" x2="622" y2="712"/>
+    </g>
+    <text x="28" y="700" font-size="15" fill="#4A5D5D">Las planillas salientes</text>
+    <text x="28" y="720" font-size="15" fill="#4A5D5D">no usan recorridos.</text>
+    <text x="28" y="752" font-size="15" fill="#4A5D5D">Roles según los permisos</text>
+    <text x="28" y="772" font-size="15" fill="#4A5D5D">por defecto.</text>
+  </g>
+</svg>
+</body></html>

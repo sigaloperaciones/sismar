@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { generatePlanillaAction } from "@/app/actions/panillas"
+import { generatePlanillaAction } from "@/app/actions/planillas"
 import { ClipboardPlus, Plus } from "lucide-react"
 
 export default function GenerateButton({ agenciaId = null, tipo = "ENTRANTE" }: { agenciaId?: number | null, tipo?: "ENTRANTE" | "SALIENTE" }) {

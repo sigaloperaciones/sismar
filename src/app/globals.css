@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+/* Branding AISerNet (obligatorio): créditos "By AISerNet Company" en NEBULA 10 pt. */
+@font-face {
+  font-family: "NEBULA";
+  src: url("/fonts/NEBULA-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+.brand-credit {
+  font-family: "NEBULA", "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 10pt;
+  letter-spacing: 0.04em;
+}
+
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));

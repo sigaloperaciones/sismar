@@ -1,31 +1,37 @@
 import { prisma } from "@/lib/prisma"
-import { getSession } from "@/lib/auth"
+import { requireSession } from "@/lib/auth-guard"
+import { correspondenciaWhere } from "@/lib/tenancy"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import Link from "next/link"
-import { Inbox, Send, FileText, Clock, CheckCircle2, AlertCircle, Package } from "lucide-react"
+import { Inbox, Send, FileText, Clock, CheckCircle2, Package } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 
 export default async function DashboardHome() {
-    const session = await getSession()
+    const ctx = await requireSession()
+    // H-003 / C-002 (A-01): todas las métricas y la actividad reciente se
+    // restringen al alcance del usuario (AGENCIA → solo su agencia).
+    const scope = correspondenciaWhere(ctx)
+
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
     const [pendientes, entregadasHoy, salientsHoy, totalHoy, recientes] = await Promise.all([
-        prisma.correspondencia.count({ where: { estado: "POR_ENTREGAR" } }),
+        prisma.correspondencia.count({ where: { AND: [scope, { estado: "POR_ENTREGAR" }] } }),
         prisma.correspondencia.count({
-            where: { estado: "ENTREGADA", fechaEntrega: { gte: today } },
+            where: { AND: [scope, { estado: "ENTREGADA", fechaEntrega: { gte: today } }] },
         }),
         prisma.correspondencia.count({
-            where: { tipo: "SALIENTE", createdAt: { gte: today } },
+            where: { AND: [scope, { tipo: "SALIENTE", createdAt: { gte: today } }] },
         }),
         prisma.correspondencia.count({
-            where: { createdAt: { gte: today } },
+            where: { AND: [scope, { createdAt: { gte: today } }] },
         }),
         prisma.correspondencia.findMany({
+            where: scope,
             orderBy: { createdAt: "desc" },
             take: 8,
             include: { agencia: true },
@@ -68,7 +74,7 @@ export default async function DashboardHome() {
             {/* Encabezado */}
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">
-                    Bienvenido, {session?.username}
+                    Bienvenido, {ctx.username}
                 </h1>
                 <p className="text-muted-foreground mt-1">
                     {format(new Date(), "EEEE d 'de' MMMM, yyyy", { locale: es })}

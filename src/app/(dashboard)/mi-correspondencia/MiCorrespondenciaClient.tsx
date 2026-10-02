@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { aprobarCorrespondenciaAction, devolverCorrespondenciaAction } from "@/app/actions/recorridos"
-import { processPlanillaAction } from "@/app/actions/panillas"
+import { processPlanillaAction } from "@/app/actions/planillas"
 import {
     CheckCircle, XCircle, RotateCcw, AlertTriangle, Package,
     CheckCircle2, Clock, FileText, ChevronDown, ChevronUp, Paperclip, Hash

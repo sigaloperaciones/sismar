@@ -56,3 +56,7 @@ prisma/*.db-journal
 
 # Logs del servidor de desarrollo
 dev-server.log
+
+# Archivos subidos por los usuarios (directorio privado, nunca versionar)
+/storage/
+/public/uploads/

@@ -166,7 +166,7 @@ EOF
 npm ci
 npx prisma migrate deploy
 npx prisma generate
-npx tsx prisma/seed.ts    # SOLO en base vacía; ver RADAR (usuarios por defecto 123456)
+npx tsx prisma/seed.ts    # SOLO en base vacía; desde H-003 el seed NO fija contraseñas (las genera o las toma del entorno)
 
 # 4) Build + arranque con PM2
 npm run build
@@ -247,12 +247,12 @@ sudo ss -tlnp | grep -E ':5433|:3002'        # deben estar SOLO en 127.0.0.1
 
 **Escenario BDD mínimo (Given/When/Then):**
 - **Given** el dominio `sismar.aisernet.tech` publicado con TLS,
-- **When** abro `https://sismar.aisernet.tech` e inicio sesión con `admin` / `123456`,
+- **When** abro `https://sismar.aisernet.tech` e inicio sesión con `admin` y la contraseña rotada,
 - **Then** entro al panel de SISMAR y veo los módulos (correspondencia, planillas, admin).
 
 **Checklist:**
 - [ ] `https://sismar.aisernet.tech` abre con candado (certificado válido).
-- [ ] Login `admin` / `123456` funciona (⚠ cambiar la clave de inmediato — ver RADAR).
+- [ ] Login `admin` con la contraseña rotada funciona (las claves por defecto del seed antiguo ya no existen — H-003).
 - [ ] `fafos.aisernet.tech` **sigue funcionando** (no se rompió la convivencia).
 - [ ] Postgres `:5433` y app `:3002` escuchan **solo** en `127.0.0.1`.
 
@@ -276,7 +276,7 @@ pm2 restart sismar-app
 
 ## RADAR del despliegue (Capa Guardian — riesgos vivos)
 
-- 🔴 **Credenciales por defecto `123456`** para `admin`, `mensajero`, `gerencia`, `talento`
+- 🔴 **Credenciales por defecto del seed antiguo** para `admin`, `mensajero`, `gerencia`, `talento` (CERRADO en H-003: seed sin claves fijas; rotación ejecutada)
   (definidas en `prisma/seed.ts`). En un entorno accesible por internet esto es crítico:
   **cambiar la contraseña de `admin` inmediatamente tras el primer login** y, mejor aún,
   rotar/eliminar los usuarios de prueba antes de exponer el dominio.
@@ -298,3 +298,30 @@ pm2 restart sismar-app
 
 ---
 *By AISerNet Company — metodología STRATA v3.*
+
+---
+
+## Actualización H-003 (remediación Auditoría N.º 2, oct/2026)
+
+Pasos adicionales al actualizar el VPS a la versión con el Flujo H-003 (ver también
+`docs/OPERACION.md`, runbook genérico sin secretos):
+
+1. Añadir al `.env` del servidor (junto a `DATABASE_URL`/`JWT_SECRET`):
+   ```
+   ALLOWED_HOSTS="<dominio público de SISMAR>"
+   UPLOADS_DIR="/ruta/privada/fuera/de/public"   # p. ej. $(pwd)/storage/uploads
+   ```
+2. `npx prisma migrate deploy` — aplica `20261001120000_h003_seguridad_autorizacion`
+   (enums con `USING`, tablas `Sesion` y `AuditLog`, columnas de bloqueo y autoría). Si
+   aborta, el mensaje lista los valores fuera de dominio a corregir; no se pierde nada.
+3. `npx prisma generate && npx tsx prisma/sync-permissions.ts` — crea los permisos
+   `planillas.gestionar` y `correspondencia.recibir` y sus asignaciones por defecto.
+4. `npx tsx prisma/migrate-uploads.ts --dry-run` y luego sin `--dry-run` — mueve los
+   archivos de `public/uploads` al directorio privado y reescribe las URLs en BD.
+5. `npm run build && pm2 restart sismar-app`.
+6. Verificar: `curl -I https://<dominio>/login` → `200` con `content-security-policy`
+   que contenga `nonce-`; `curl -I https://<dominio>/uploads/x.pdf` → `404`;
+   `curl -I "https://<dominio>/api/uploads?filename=x.pdf"` → `401`.
+7. Avisar a los usuarios: todas las sesiones anteriores quedan invalidadas (deben
+   iniciar sesión de nuevo). `deploy/setup-sismar.sh` ya incorpora los pasos 1–4 para
+   aprovisionamientos nuevos (exige `SITE_DOMAIN`).

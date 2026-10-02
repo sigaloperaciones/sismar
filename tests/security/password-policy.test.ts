@@ -6,7 +6,8 @@ import { createUserSchema, updateUserSchema } from '@/lib/schemas/admin'
  * mínimo 8 caracteres con mayúscula, minúscula y número (alineado a NIST).
  */
 describe('SEC-020: política de contraseñas', () => {
-    const base = { username: 'usuario1', role: 'AGENCIA' as const }
+    // H-003 (B-09): un AGENCIA exige agencia; la base la incluye para aislar la política de contraseña.
+    const base = { username: 'usuario1', role: 'AGENCIA' as const, agenciaId: '1' }
 
     it('rechaza contraseñas de 6 caracteres', () => {
         expect(createUserSchema.safeParse({ ...base, password: '123456' }).success).toBe(false)

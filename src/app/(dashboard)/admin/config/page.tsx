@@ -1,7 +1,14 @@
+import AccessDenied from "@/components/AccessDenied"
+import { requireAdminPage } from "@/lib/auth-guard"
 import { prisma } from "@/lib/prisma"
 import ConfigForm from "./ConfigForm"
 
 export default async function ConfigPage() {
+    // H-003 / R-028 (AC-016): guard PROPIO. Los layouts de Next no son frontera de
+    // seguridad (una petición RSC puede declararlos ya renderizados). El layout
+    // /admin queda como defensa adicional.
+    const auth = await requireAdminPage()
+    if (!auth.ok) return <AccessDenied permiso="rol ADMIN" />
     const config = await prisma.empresaConfig.findFirst()
 
     return (

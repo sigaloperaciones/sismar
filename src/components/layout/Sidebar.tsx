@@ -33,7 +33,9 @@ const mainMenuItems = [
     { name: "Inicio", href: "/", icon: Home, permiso: null as string | null },
     { name: "Correspondencia Entrante", href: "/correspondencia/entrante", icon: InboxIcon, permiso: "correspondencia.entrante.ver" },
     { name: "Correspondencia Saliente", href: "/correspondencia/saliente", icon: Send, permiso: "correspondencia.saliente.ver" },
-    { name: "Mis Planillas", href: "/mi-correspondencia", icon: ClipboardCheck, permiso: null },
+    // H-003: "Mis Planillas" se muestra a quien puede RECIBIR correspondencia
+    // (permiso `correspondencia.recibir`), no por rol fijo.
+    { name: "Mis Planillas", href: "/mi-correspondencia", icon: ClipboardCheck, permiso: "correspondencia.recibir" },
     { name: "Planillas", href: "/planillas", icon: FileText, permiso: "planillas.ver" },
     { name: "Recorridos", href: "/recorridos", icon: Truck, permiso: "recorridos.ver" },
     { name: "Reportes", href: "/reportes", icon: BarChart3, permiso: "reportes.ver" },
@@ -88,11 +90,6 @@ export function Sidebar({ role, username, permissions = [] }: SidebarProps) {
                             const isActive = item.href === "/"
                                 ? pathname === "/"
                                 : pathname.startsWith(item.href);
-
-                            // Ocultar "Mi Correspondencia" para no-AGENCIA y no-ADMIN
-                            if (item.href === "/mi-correspondencia" && role !== "AGENCIA" && role !== "ADMIN") {
-                                return null;
-                            }
 
                             // Guardian (req. cliente #2): ocultar el módulo si el permiso
                             // requerido no está en los permisos efectivos del usuario.

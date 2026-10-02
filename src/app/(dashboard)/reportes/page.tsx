@@ -1,15 +1,21 @@
 import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@prisma/client"
 import { BarChart3, Clock, CheckCircle2, Filter } from "lucide-react"
 import ReportFilters from "./ReportFilters"
 import ReportView from "./ReportView"
+import AccessDenied from "@/components/AccessDenied"
+import { requirePagePermission } from "@/lib/auth-guard"
+import { PERMISOS } from "@/lib/permissions-catalog"
+import { agenciaWhere, canAccessAgencia, correspondenciaWhere } from "@/lib/tenancy"
+import { asEnum, EstadoCorrespondencia, Importancia, TipoCorrespondencia } from "@/lib/enums"
 
 export const revalidate = 0 // Desactivar cache para que los filtros funcionen en tiempo real
 
 export default async function ReportesPage({
     searchParams,
 }: {
-    searchParams: Promise<{ 
-        status?: string; 
+    searchParams: Promise<{
+        status?: string;
         tipo?: string;
         fechaInicio?: string;
         fechaFin?: string;
@@ -20,8 +26,13 @@ export default async function ReportesPage({
         empresaMensajeria?: string;
     }>
 }) {
-    const { 
-        status: statusFilter, 
+    // H-003 / C-007 (M-01): el módulo exige permiso explícito.
+    const auth = await requirePagePermission(PERMISOS.REPORTES_VER)
+    if (!auth.ok) return <AccessDenied permiso={auth.permiso} />
+    const ctx = auth.ctx
+
+    const {
+        status: statusFilter,
         tipo: tipoFilter,
         fechaInicio,
         fechaFin,
@@ -32,29 +43,44 @@ export default async function ReportesPage({
         empresaMensajeria
     } = await searchParams
 
-    const whereClause: Record<string, any> = {}
-    if (statusFilter && statusFilter !== "ALL") whereClause.estado = statusFilter
-    if (tipoFilter && tipoFilter !== "ALL") whereClause.tipo = tipoFilter
-    if (agenciaId && agenciaId !== "ALL") whereClause.agenciaId = parseInt(agenciaId)
-    if (importancia && importancia !== "ALL") whereClause.importancia = importancia
-    if (necesitaRespuesta && necesitaRespuesta !== "ALL") whereClause.necesitaRespuesta = necesitaRespuesta === "true"
-    if (empresaMensajeria && empresaMensajeria !== "ALL") whereClause.empresaMensajeria = empresaMensajeria
-    
-    if (fechaInicio || fechaFin) {
-        whereClause.fechaRecepcion = {}
-        if (fechaInicio) whereClause.fechaRecepcion.gte = new Date(`${fechaInicio}T00:00:00.000Z`)
-        if (fechaFin) whereClause.fechaRecepcion.lte = new Date(`${fechaFin}T23:59:59.999Z`)
+    // H-003 / C-002 (A-01): tenencia obligatoria; los filtros del usuario se
+    // aplican DENTRO de su alcance y los valores se validan contra los enums (B-02).
+    const tenancy = correspondenciaWhere(ctx)
+    const filters: Prisma.CorrespondenciaWhereInput = {}
+
+    const estado = asEnum(EstadoCorrespondencia, statusFilter)
+    if (estado) filters.estado = estado
+    const tipo = asEnum(TipoCorrespondencia, tipoFilter)
+    if (tipo) filters.tipo = tipo
+    const imp = asEnum(Importancia, importancia)
+    if (imp) filters.importancia = imp
+
+    if (agenciaId && agenciaId !== "ALL") {
+        const n = parseInt(agenciaId)
+        if (!isNaN(n) && canAccessAgencia(ctx, n)) filters.agenciaId = n
+    }
+    if (necesitaRespuesta && necesitaRespuesta !== "ALL") filters.necesitaRespuesta = necesitaRespuesta === "true"
+    if (empresaMensajeria && empresaMensajeria !== "ALL") filters.empresaMensajeria = empresaMensajeria.slice(0, 120)
+
+    const isDate = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s)
+    if (isDate(fechaInicio) || isDate(fechaFin)) {
+        filters.fechaRecepcion = {}
+        if (isDate(fechaInicio)) filters.fechaRecepcion.gte = new Date(`${fechaInicio}T00:00:00.000Z`)
+        if (isDate(fechaFin)) filters.fechaRecepcion.lte = new Date(`${fechaFin}T23:59:59.999Z`)
     }
 
-    if (search) {
-        whereClause.OR = [
-            { remitenteNombre: { contains: search } },
-            { destinatarioNombre: { contains: search } },
-            { asunto: { contains: search } },
-            { observacionAgencia: { contains: search } },
-            { observacionDevolucion: { contains: search } }
+    const searchTerm = search?.trim().slice(0, 100)
+    if (searchTerm) {
+        filters.OR = [
+            { remitenteNombre: { contains: searchTerm } },
+            { destinatarioNombre: { contains: searchTerm } },
+            { asunto: { contains: searchTerm } },
+            { observacionAgencia: { contains: searchTerm } },
+            { observacionDevolucion: { contains: searchTerm } }
         ]
     }
+
+    const whereClause: Prisma.CorrespondenciaWhereInput = { AND: [tenancy, filters] }
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -66,29 +92,29 @@ export default async function ReportesPage({
             take: 100,
             include: { agencia: true },
         }),
-        prisma.correspondencia.count({ where: { estado: "POR_ENTREGAR" } }),
-        prisma.correspondencia.count({ where: { createdAt: { gte: today } } }),
-        prisma.correspondencia.count({ where: { estado: "ENTREGADA" } }),
-        prisma.agencia.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+        prisma.correspondencia.count({ where: { AND: [tenancy, { estado: "POR_ENTREGAR" }] } }),
+        prisma.correspondencia.count({ where: { AND: [tenancy, { createdAt: { gte: today } }] } }),
+        prisma.correspondencia.count({ where: { AND: [tenancy, { estado: "ENTREGADA" }] } }),
+        prisma.agencia.findMany({ where: agenciaWhere(ctx), orderBy: { name: 'asc' }, select: { id: true, name: true } }),
         prisma.empresaMensajeria.findMany({ where: { activo: true }, select: { nombre: true }, orderBy: { nombre: "asc" } })
     ])
 
     // Build human-readable filters for CSV export
     const activeFilters: string[] = []
-    if (statusFilter && statusFilter !== "ALL") {
-        activeFilters.push(`Estado: ${statusFilter === "POR_ENTREGAR" ? "Pendiente" : statusFilter === "ENTREGADA" ? "Entregada" : "Devuelta"}`)
+    if (estado) {
+        activeFilters.push(`Estado: ${estado === "POR_ENTREGAR" ? "Pendiente" : estado === "ENTREGADA" ? "Entregada" : "Devuelta"}`)
     }
-    if (tipoFilter && tipoFilter !== "ALL") {
-        activeFilters.push(`Tipo: ${tipoFilter}`)
+    if (tipo) {
+        activeFilters.push(`Tipo: ${tipo}`)
     }
-    if (fechaInicio) activeFilters.push(`Desde: ${fechaInicio}`)
-    if (fechaFin) activeFilters.push(`Hasta: ${fechaFin}`)
-    if (agenciaId && agenciaId !== "ALL") {
-        const ag = agencias.find(a => a.id.toString() === agenciaId)
+    if (isDate(fechaInicio)) activeFilters.push(`Desde: ${fechaInicio}`)
+    if (isDate(fechaFin)) activeFilters.push(`Hasta: ${fechaFin}`)
+    if (filters.agenciaId) {
+        const ag = agencias.find(a => a.id === filters.agenciaId)
         if (ag) activeFilters.push(`Agencia: ${ag.name}`)
     }
-    if (importancia && importancia !== "ALL") {
-        activeFilters.push(`Importancia: ${importancia}`)
+    if (imp) {
+        activeFilters.push(`Importancia: ${imp}`)
     }
     if (necesitaRespuesta && necesitaRespuesta !== "ALL") {
         activeFilters.push(`Requiere Respuesta: ${necesitaRespuesta === "true" ? "Sí" : "No"}`)
@@ -96,8 +122,8 @@ export default async function ReportesPage({
     if (empresaMensajeria && empresaMensajeria !== "ALL") {
         activeFilters.push(`Empresa: ${empresaMensajeria}`)
     }
-    if (search) {
-        activeFilters.push(`Búsqueda: "${search}"`)
+    if (searchTerm) {
+        activeFilters.push(`Búsqueda: "${searchTerm}"`)
     }
     if (activeFilters.length === 0) {
         activeFilters.push("Sin filtros (Últimos 100 registros)")
@@ -112,7 +138,9 @@ export default async function ReportesPage({
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Reportes y Consultas</h1>
-                    <p className="text-sm text-gray-500">Historial y estado de toda la correspondencia</p>
+                    <p className="text-sm text-gray-500">
+                        {ctx.role === "AGENCIA" ? "Historial y estado de la correspondencia de su agencia" : "Historial y estado de toda la correspondencia"}
+                    </p>
                 </div>
             </div>
 
@@ -158,7 +186,7 @@ export default async function ReportesPage({
                         {items.length} resultado{items.length !== 1 ? "s" : ""}
                     </span>
                 </div>
-                
+
                 <ReportFilters agencias={agencias} empresas={empresas} />
 
                 {/* Vista dinámica */}
@@ -167,4 +195,3 @@ export default async function ReportesPage({
         </div>
     )
 }
-

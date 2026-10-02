@@ -85,8 +85,10 @@ describe('Req#2: updateMailAction exige requirePermission de creación', () => {
         const nextExport = source.indexOf('export async function', start + 1)
         const body = source.slice(start, nextExport === -1 ? source.length : nextExport)
 
-        expect(/requirePermission\s*\(/.test(body)).toBe(true)
-        expect(body).toContain('correspondencia.saliente.crear')
-        expect(body).toContain('correspondencia.entrante.crear')
+        expect(/(requirePermission|assertPermission)\s*\(/.test(body)).toBe(true)
+        // H-003: el permiso se elige según el tipo REAL del registro (existing.tipo)
+        expect(body).toContain('PERMISOS.SALIENTE_CREAR')
+        expect(body).toContain('PERMISOS.ENTRANTE_CREAR')
+        expect(body).toContain('existing.tipo === "SALIENTE"')
     })
 })

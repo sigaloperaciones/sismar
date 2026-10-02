@@ -1,5 +1,9 @@
 import { Sidebar } from "./Sidebar";
-import type { SessionPayload } from "@/lib/auth";
+
+export interface LayoutSession {
+    username: string;
+    role: string;
+}
 
 export default function LayoutWrapper({
     children,
@@ -7,7 +11,7 @@ export default function LayoutWrapper({
     permissions = [],
 }: {
     children: React.ReactNode;
-    session: SessionPayload;
+    session: LayoutSession;
     permissions?: string[];
 }) {
     return (

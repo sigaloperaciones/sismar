@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Topología de ejecución</title>
+<style>html,body{margin:0;padding:0;background:#fff}svg{display:block}</style></head>
+<body>
+<!-- Lienzo de 960 px para página vertical: 16 px aquí ≈ 8 pt impresos. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="860" viewBox="0 0 960 860" role="img"
+     aria-label="Topología de SISMAR: el navegador llega por HTTPS al proxy inverso; el proxy reenvía a Node en loopback; Node usa PostgreSQL en loopback y un directorio privado de archivos"
+     font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1B3D3D"/>
+    </marker>
+  </defs>
+
+  <!-- Internet -->
+  <text x="24" y="34" font-size="17" font-weight="700" fill="#4A5D5D">INTERNET</text>
+  <g transform="translate(330,48)">
+    <rect width="300" height="86" rx="12" fill="#fff" stroke="#1B3D3D" stroke-width="1.8"/>
+    <text x="150" y="38" font-size="21" font-weight="700" text-anchor="middle" fill="#1B3D3D">Navegador</text>
+    <text x="150" y="66" font-size="16" text-anchor="middle" fill="#4A5D5D">cookie de sesión httpOnly</text>
+  </g>
+
+  <!-- Servidor -->
+  <rect x="12" y="150" width="936" height="700" rx="16" fill="#F3F9F9" stroke="#9FC4C6" stroke-dasharray="8 6"/>
+  <text x="36" y="182" font-size="17" font-weight="700" fill="#1B3D3D">SERVIDOR DEL CLIENTE</text>
+  <text x="36" y="204" font-size="15" fill="#4A5D5D">solo el proxy recibe tráfico externo</text>
+
+  <line x1="480" y1="134" x2="480" y2="196" stroke="#1B3D3D" stroke-width="2.2" marker-end="url(#a)"/>
+  <text x="496" y="172" font-size="17" font-weight="600" fill="#1B3D3D">HTTPS</text>
+  <g transform="translate(330,200)">
+    <rect width="300" height="86" rx="12" fill="#fff" stroke="#1B3D3D" stroke-width="1.8"/>
+    <text x="150" y="38" font-size="21" font-weight="700" text-anchor="middle" fill="#1B3D3D">Proxy inverso</text>
+    <text x="150" y="66" font-size="16" text-anchor="middle" fill="#4A5D5D">Caddy u otro · termina TLS</text>
+  </g>
+  <line x1="480" y1="286" x2="480" y2="338" stroke="#1B3D3D" stroke-width="2.2" marker-end="url(#a)"/>
+  <text x="496" y="310" font-size="15" fill="#4A5D5D">HTTP en loopback · fija X-Forwarded-For y X-Forwarded-Proto</text>
+
+  <!-- Node -->
+  <g transform="translate(36,342)">
+    <rect width="888" height="296" rx="14" fill="#fff" stroke="#1B3D3D" stroke-width="2.2"/>
+    <text x="24" y="38" font-size="21" font-weight="700" fill="#1B3D3D">Node · Next.js</text>
+    <text x="210" y="38" font-size="16" font-weight="600" fill="#0E6F78">escucha solo en 127.0.0.1 · proceso PM2</text>
+    <g font-size="17">
+      <rect x="24" y="56" width="412" height="104" rx="10" fill="#EAF5F6"/>
+      <text x="40" y="88" font-weight="700" fill="#1B3D3D">Middleware (Edge)</text>
+      <text x="40" y="114" font-size="16" fill="#3B4F4F">firma del JWT · CSP con nonce</text>
+      <text x="40" y="138" font-size="16" fill="#3B4F4F">/uploads/* → 404</text>
+
+      <rect x="452" y="56" width="412" height="104" rx="10" fill="#EAF5F6"/>
+      <text x="468" y="88" font-weight="700" fill="#1B3D3D">Páginas y server actions</text>
+      <text x="468" y="114" font-size="16" fill="#3B4F4F">guard propio + tenencia + Zod</text>
+      <text x="468" y="138" font-size="16" fill="#3B4F4F">+ audit() en cada operación</text>
+
+      <rect x="24" y="172" width="412" height="104" rx="10" fill="#EAF5F6"/>
+      <text x="40" y="204" font-weight="700" fill="#1B3D3D">/api/uploads</text>
+      <text x="40" y="230" font-size="16" fill="#3B4F4F">sesión viva + ACL por objeto</text>
+      <text x="40" y="254" font-size="16" fill="#3B4F4F">nosniff · CSP default-src 'none'</text>
+
+      <rect x="452" y="172" width="412" height="104" rx="10" fill="#EAF5F6"/>
+      <text x="468" y="204" font-weight="700" fill="#1B3D3D">/api/auth/expired</text>
+      <text x="468" y="230" font-size="16" fill="#3B4F4F">borra la cookie de una sesión inválida</text>
+      <text x="468" y="254" font-size="16" fill="#3B4F4F">y envía a /login?expired=1</text>
+    </g>
+  </g>
+
+  <!-- Datos -->
+  <line x1="260" y1="638" x2="260" y2="690" stroke="#1B3D3D" stroke-width="2.2" marker-end="url(#a)"/>
+  <text x="276" y="670" font-size="16" fill="#1B3D3D">Prisma</text>
+  <line x1="700" y1="638" x2="700" y2="690" stroke="#1B3D3D" stroke-width="2.2" marker-end="url(#a)"/>
+  <text x="716" y="670" font-size="16" fill="#1B3D3D">fs (solo lo sirve /api/uploads)</text>
+
+  <g transform="translate(36,694)">
+    <rect width="440" height="132" rx="12" fill="#fff" stroke="#1B3D3D" stroke-width="1.8"/>
+    <text x="220" y="38" font-size="21" font-weight="700" text-anchor="middle" fill="#1B3D3D">PostgreSQL 16</text>
+    <text x="220" y="66" font-size="16" font-weight="600" text-anchor="middle" fill="#0E6F78">solo 127.0.0.1</text>
+    <text x="220" y="96" font-size="16" text-anchor="middle" fill="#4A5D5D">Sesion · Usuario · Permisos</text>
+    <text x="220" y="118" font-size="16" text-anchor="middle" fill="#4A5D5D">Correspondencia · Planillas · AuditLog</text>
+  </g>
+  <g transform="translate(484,694)">
+    <rect width="440" height="132" rx="12" fill="#fff" stroke="#1B3D3D" stroke-width="1.8"/>
+    <text x="220" y="38" font-size="21" font-weight="700" text-anchor="middle" fill="#1B3D3D">UPLOADS_DIR</text>
+    <text x="220" y="66" font-size="16" font-weight="600" text-anchor="middle" fill="#0E6F78">privado, fuera de public/</text>
+    <text x="220" y="96" font-size="16" text-anchor="middle" fill="#4A5D5D">guías y firmas</text>
+    <text x="220" y="118" font-size="16" text-anchor="middle" fill="#4A5D5D">PDF · PNG · JPG ≤ 10 MB</text>
+  </g>
+</svg>
+</body></html>

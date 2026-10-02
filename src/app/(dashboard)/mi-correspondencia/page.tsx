@@ -1,25 +1,22 @@
 import { prisma } from "@/lib/prisma"
-import { getSession } from "@/lib/auth"
-import { redirect } from "next/navigation"
 import { Inbox, Route } from "lucide-react"
 import MiCorrespondenciaClient from "./MiCorrespondenciaClient"
+import AccessDenied from "@/components/AccessDenied"
+import { requirePagePermission } from "@/lib/auth-guard"
+import { PERMISOS } from "@/lib/permissions-catalog"
 
 export default async function MiCorrespondenciaPage() {
-    const session = await getSession()
-    if (!session) redirect("/login")
+    // H-003 / C-007: recibir correspondencia (aprobar/devolver/procesar) exige
+    // el permiso `correspondencia.recibir`. La agencia se lee de BD (ctx fresco).
+    const auth = await requirePagePermission(PERMISOS.RECIBIR)
+    if (!auth.ok) return <AccessDenied permiso={auth.permiso} />
+    const ctx = auth.ctx
 
-    // Solo usuarios de tipo AGENCIA
-    if (session.role !== "AGENCIA" && session.role !== "ADMIN") {
-        redirect("/")
-    }
+    const agencia = ctx.agenciaId
+        ? await prisma.agencia.findUnique({ where: { id: ctx.agenciaId }, select: { id: true, name: true } })
+        : null
 
-    // Buscar agencia del usuario
-    const usuario = await prisma.usuario.findUnique({
-        where: { id: session.userId as number },
-        include: { agencia: true }
-    })
-
-    if (!usuario?.agencia) {
+    if (!agencia) {
         return (
             <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -49,7 +46,7 @@ export default async function MiCorrespondenciaPage() {
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900">Mis Planillas</h1>
-                        <p className="text-sm text-gray-500">{usuario.agencia.name}</p>
+                        <p className="text-sm text-gray-500">{agencia.name}</p>
                     </div>
                 </div>
                 <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-12 text-center">
@@ -61,10 +58,10 @@ export default async function MiCorrespondenciaPage() {
         )
     }
 
-    // Buscar planillas de la agencia en el recorrido activo
+    // Planillas de la agencia del usuario en el recorrido activo (tenencia por agenciaId)
     const planillas = await prisma.planilla.findMany({
         where: {
-            agenciaId: usuario.agencia.id,
+            agenciaId: agencia.id,
             recorridoPlanillas: {
                 some: { recorridoId: recorridoActivo.id }
             }
@@ -106,7 +103,7 @@ export default async function MiCorrespondenciaPage() {
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Mis Planillas</h1>
                     <p className="text-sm text-gray-500">
-                        {usuario.agencia.name} · Recorrido #{recorridoActivo.id}
+                        {agencia.name} · Recorrido #{recorridoActivo.id}
                     </p>
                 </div>
             </div>

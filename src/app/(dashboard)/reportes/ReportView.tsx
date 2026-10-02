@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { format, differenceInDays, addDays } from "date-fns"
 import { es } from "date-fns/locale"
+import { csvCell } from "@/lib/csv"
 import { 
     Table, 
     BarChart3, 
@@ -131,19 +132,20 @@ export default function ReportView({ items, activeFilters = [] }: ReportViewProp
             `"Filtros Activos: ${activeFilters.join(" | ")}"`,
             "",
             headers.join(","),
+            // R-037: csvCell neutraliza fórmulas (= + - @) y escapa comillas en cada celda
             ...items.map(item => {
                 return [
-                    `"${format(new Date(item.fechaRecepcion), "dd/MM/yyyy HH:mm")}"`,
-                    `"${item.tipo}"`,
-                    `"${item.estado === "POR_ENTREGAR" ? "Pendiente" : item.estado === "ENTREGADA" ? "Entregada" : "Devuelta"}"`,
-                    `"${item.agencia?.name?.replace(/"/g, '""') || ""}"`,
-                    `"${(item.remitenteNombre || item.destinatarioNombre || "").replace(/"/g, '""')}"`,
-                    `"${(item.empresaMensajeria || "").replace(/"/g, '""')}"`,
-                    `"${item.asunto.replace(/"/g, '""')}"`,
-                    `"${item.importancia}"`,
-                    `"${item.necesitaRespuesta ? "Sí" : "No"}"`,
-                    `"${(item.observacionAgencia || "").replace(/"/g, '""')}"`,
-                    `"${(item.observacionDevolucion || "").replace(/"/g, '""')}"`
+                    csvCell(format(new Date(item.fechaRecepcion), "dd/MM/yyyy HH:mm")),
+                    csvCell(item.tipo),
+                    csvCell(item.estado === "POR_ENTREGAR" ? "Pendiente" : item.estado === "ENTREGADA" ? "Entregada" : "Devuelta"),
+                    csvCell(item.agencia?.name || ""),
+                    csvCell(item.remitenteNombre || item.destinatarioNombre || ""),
+                    csvCell(item.empresaMensajeria || ""),
+                    csvCell(item.asunto),
+                    csvCell(item.importancia),
+                    csvCell(item.necesitaRespuesta ? "Sí" : "No"),
+                    csvCell(item.observacionAgencia || ""),
+                    csvCell(item.observacionDevolucion || "")
                 ].join(",")
             })
         ].join("\n")

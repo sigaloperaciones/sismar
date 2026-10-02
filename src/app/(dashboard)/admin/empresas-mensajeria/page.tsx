@@ -1,8 +1,15 @@
+import AccessDenied from "@/components/AccessDenied"
+import { requireAdminPage } from "@/lib/auth-guard"
 import { prisma } from "@/lib/prisma"
 import { Truck } from "lucide-react"
 import EmpresasClient from "./EmpresasClient"
 
 export default async function EmpresasMensajeriaPage() {
+    // H-003 / R-028 (AC-016): guard PROPIO. Los layouts de Next no son frontera de
+    // seguridad (una petición RSC puede declararlos ya renderizados). El layout
+    // /admin queda como defensa adicional.
+    const auth = await requireAdminPage()
+    if (!auth.ok) return <AccessDenied permiso="rol ADMIN" />
     const empresas = await prisma.empresaMensajeria.findMany({
         orderBy: { nombre: "asc" }
     })

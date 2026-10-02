@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Recorrido de autorización</title>
+<style>html,body{margin:0;padding:0;background:#fff}svg{display:block}</style></head>
+<body>
+<!-- Lienzo de 960 px para página vertical: 16 px aquí ≈ 8 pt impresos. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="760" viewBox="0 0 960 760" role="img"
+     aria-label="Recorrido de autorización de una petición en SISMAR: middleware, sesión en base de datos, guard de permiso, tenencia y operación con bitácora; cada etapa tiene su salida de denegación"
+     font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1B3D3D"/>
+    </marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#B42318"/>
+    </marker>
+  </defs>
+
+  <text x="24" y="30" font-size="17" font-weight="700" fill="#4A5D5D">CAMINO PERMITIDO</text>
+  <text x="540" y="30" font-size="17" font-weight="700" fill="#B42318">SALIDA DE DENEGACIÓN</text>
+
+  <!-- Petición -->
+  <g transform="translate(24,44)">
+    <rect width="420" height="84" rx="12" fill="#fff" stroke="#1B3D3D" stroke-width="1.8"/>
+    <text x="20" y="34" font-size="20" font-weight="700" fill="#1B3D3D">Petición</text>
+    <text x="20" y="62" font-size="16" fill="#4A5D5D">página, server action o /api/uploads · cookie "session"</text>
+  </g>
+
+  <!-- Etapas y denegaciones: filas cada 128 px -->
+  <g font-size="16">
+    <g transform="translate(24,172)">
+      <rect width="420" height="96" rx="12" fill="#fff" stroke="#1B3D3D" stroke-width="1.8"/>
+      <text x="20" y="34" font-size="20" font-weight="700" fill="#1B3D3D">1. Middleware</text>
+      <text x="20" y="60" fill="#4A5D5D">firma y expiración del JWT, sin base de datos</text>
+      <text x="20" y="82" fill="#0E6F78" font-weight="600">no corre en /api</text>
+    </g>
+    <g transform="translate(536,172)">
+      <rect width="400" height="96" rx="12" fill="#FDF1EF" stroke="#B42318" stroke-width="1.6"/>
+      <text x="18" y="32" font-size="17" font-weight="700" fill="#8A1C12">Sin JWT válido</text>
+      <text x="18" y="58" fill="#5A2A24">307 → /login</text>
+      <text x="18" y="80" fill="#5A2A24">limpia la cookie con los mismos atributos</text>
+    </g>
+
+    <g transform="translate(24,300)">
+      <rect width="420" height="96" rx="12" fill="#fff" stroke="#1B3D3D" stroke-width="1.8"/>
+      <text x="20" y="34" font-size="20" font-weight="700" fill="#1B3D3D">2. requireSession</text>
+      <text x="20" y="60" fill="#4A5D5D">Sesion viva + Usuario leídos de la base</text>
+      <text x="20" y="82" fill="#0E6F78" font-weight="600">rol y agencia frescos · guard en cada página</text>
+    </g>
+    <g transform="translate(536,300)">
+      <rect width="400" height="96" rx="12" fill="#FDF1EF" stroke="#B42318" stroke-width="1.6"/>
+      <text x="18" y="32" font-size="17" font-weight="700" fill="#8A1C12">Sesión revocada, expirada o usuario borrado</text>
+      <text x="18" y="58" fill="#5A2A24">/api/auth/expired (303) → /login?expired=1</text>
+      <text x="18" y="80" fill="#5A2A24">en /api/uploads: 401</text>
+    </g>
+
+    <g transform="translate(24,428)">
+      <rect width="420" height="96" rx="12" fill="#fff" stroke="#1B3D3D" stroke-width="1.8"/>
+      <text x="20" y="34" font-size="20" font-weight="700" fill="#1B3D3D">3. Guard de permiso o de rol</text>
+      <text x="20" y="60" fill="#4A5D5D">requirePermission / assertPermission / requireAdmin</text>
+      <text x="20" y="82" fill="#0E6F78" font-weight="600">override de usuario &gt; rol &gt; niega</text>
+    </g>
+    <g transform="translate(536,428)">
+      <rect width="400" height="96" rx="12" fill="#FDF1EF" stroke="#B42318" stroke-width="1.6"/>
+      <text x="18" y="32" font-size="17" font-weight="700" fill="#8A1C12">Sin permiso o sin rol ADMIN</text>
+      <text x="18" y="58" fill="#5A2A24">página: Acceso denegado · acción: { error "(403)" }</text>
+      <text x="18" y="80" fill="#5A2A24">+ fila ACCESO_DENEGADO</text>
+    </g>
+
+    <g transform="translate(24,556)">
+      <rect width="420" height="96" rx="12" fill="#fff" stroke="#1B3D3D" stroke-width="1.8"/>
+      <text x="20" y="34" font-size="20" font-weight="700" fill="#1B3D3D">4. Tenencia (tenancy.ts)</text>
+      <text x="20" y="60" fill="#4A5D5D">filtro por alcance y pertenencia del objeto</text>
+      <text x="20" y="82" fill="#0E6F78" font-weight="600">salientes compartidas: gestión solo global</text>
+    </g>
+    <g transform="translate(536,556)">
+      <rect width="400" height="96" rx="12" fill="#FDF1EF" stroke="#B42318" stroke-width="1.6"/>
+      <text x="18" y="32" font-size="17" font-weight="700" fill="#8A1C12">Objeto de otra agencia</text>
+      <text x="18" y="58" fill="#5A2A24">acción y archivo: 403 · página de objeto: 404</text>
+      <text x="18" y="80" fill="#5A2A24">+ fila ACCESO_DENEGADO o ARCHIVO_DENEGADO</text>
+    </g>
+
+    <g transform="translate(24,684)">
+      <rect width="420" height="66" rx="12" fill="#1B3D3D"/>
+      <text x="20" y="30" font-size="20" font-weight="700" fill="#fff">5. Operación</text>
+      <text x="20" y="54" fill="#D7EFF1">Zod + Prisma + audit() → fila en AuditLog</text>
+    </g>
+    <text x="536" y="712" font-size="15" fill="#4A5D5D">AGENCIA sin agencia asignada → alcance vacío:</text>
+    <text x="536" y="734" font-size="15" fill="#4A5D5D">no ve ni opera ningún registro.</text>
+  </g>
+
+  <g stroke="#1B3D3D" stroke-width="2.2" marker-end="url(#a)">
+    <line x1="234" y1="128" x2="234" y2="168"/>
+    <line x1="234" y1="268" x2="234" y2="296"/>
+    <line x1="234" y1="396" x2="234" y2="424"/>
+    <line x1="234" y1="524" x2="234" y2="552"/>
+    <line x1="234" y1="652" x2="234" y2="680"/>
+  </g>
+  <g stroke="#B42318" stroke-width="2.2" marker-end="url(#r)">
+    <line x1="444" y1="220" x2="532" y2="220"/>
+    <line x1="444" y1="348" x2="532" y2="348"/>
+    <line x1="444" y1="476" x2="532" y2="476"/>
+    <line x1="444" y1="604" x2="532" y2="604"/>
+  </g>
+</svg>
+</body></html>

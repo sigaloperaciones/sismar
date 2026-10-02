@@ -1,3 +1,5 @@
+import AccessDenied from "@/components/AccessDenied"
+import { requireAdminPage } from "@/lib/auth-guard"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Building2, Users, ShieldCheck, MapPin, Truck, Settings2 } from "lucide-react"
@@ -53,7 +55,12 @@ const sections = [
     },
 ]
 
-export default function AdminPage() {
+export default async function AdminPage() {
+    // H-003 / R-028 (AC-016): guard PROPIO. Los layouts de Next no son frontera de
+    // seguridad (una petición RSC puede declararlos ya renderizados). El layout
+    // /admin queda como defensa adicional.
+    const auth = await requireAdminPage()
+    if (!auth.ok) return <AccessDenied permiso="rol ADMIN" />
     return (
         <div className="space-y-8">
             <div>

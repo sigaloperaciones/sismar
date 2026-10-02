@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { closePlanillaAction, reopenPlanillaAction } from "@/app/actions/panillas"
+import { closePlanillaAction, reopenPlanillaAction } from "@/app/actions/planillas"
 import { Lock, Unlock, CheckCircle2 } from "lucide-react"
 
 interface PlanillaDetailStatusButtonProps {

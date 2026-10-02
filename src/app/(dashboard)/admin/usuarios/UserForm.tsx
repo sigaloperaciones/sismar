@@ -30,6 +30,7 @@ export default function UserForm({ agencias, mode, defaultValues, onSubmit }: Us
         resolver: zodResolver(schema as never),
         defaultValues: {
             username: defaultValues?.username ?? "",
+            email: defaultValues?.email ?? "",
             password: "",
             role: defaultValues?.role ?? "AGENCIA",
             agenciaId: defaultValues?.agenciaId ?? "",
@@ -62,6 +63,13 @@ export default function UserForm({ agencias, mode, defaultValues, onSubmit }: Us
                         <Label htmlFor="username">Nombre de usuario *</Label>
                         <Input id="username" {...form.register("username")} autoComplete="off" />
                         {errors.username && <p className="text-red-500 text-xs">{errors.username.message}</p>}
+                    </div>
+
+                    {/* H-003 / C-015 (B-05): correo para avisos de recorrido */}
+                    <div className="space-y-2">
+                        <Label htmlFor="email">Correo electrónico <span className="text-muted-foreground text-xs">(opcional, para avisos)</span></Label>
+                        <Input id="email" type="email" autoComplete="off" placeholder="usuario@institucion.test" {...form.register("email")} />
+                        {errors.email && <p className="text-red-500 text-xs">{errors.email.message}</p>}
                     </div>
 
                     <div className="space-y-2">
@@ -113,6 +121,7 @@ export default function UserForm({ agencias, mode, defaultValues, onSubmit }: Us
                                     </Select>
                                 )}
                             />
+                            {errors.agenciaId && <p className="text-red-500 text-xs">{errors.agenciaId.message}</p>}
                         </div>
                     )}
                 </CardContent>

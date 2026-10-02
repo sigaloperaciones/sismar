@@ -3,19 +3,34 @@ import RecorridosClient from "./RecorridoList"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { Route, Calendar } from "lucide-react"
+import AccessDenied from "@/components/AccessDenied"
+import { can, requirePagePermission } from "@/lib/auth-guard"
+import { PERMISOS } from "@/lib/permissions-catalog"
+import { correspondenciaWhere, planillaWhere } from "@/lib/tenancy"
 
 export default async function RecorridosPage() {
-    // Recorrido activo (INICIADO o TERMINADO reciente)
+    // H-003 / C-007 (M-01): permiso explícito del módulo.
+    const auth = await requirePagePermission(PERMISOS.RECORRIDOS_VER)
+    if (!auth.ok) return <AccessDenied permiso={auth.permiso} />
+    const ctx = auth.ctx
+    const canManage = await can(ctx, PERMISOS.RECORRIDOS_GESTIONAR)
+
+    // H-003 / C-002 (A-01): una AGENCIA solo ve sus planillas dentro del recorrido.
+    const tenancyP = planillaWhere(ctx)
+    const tenancyC = correspondenciaWhere(ctx)
+
+    // Recorrido activo (INICIADO)
     const recorridoActivoDB = await prisma.recorrido.findFirst({
         where: { estado: "INICIADO" },
         orderBy: { fecha: "desc" },
         include: {
             planillas: {
+                where: { planilla: tenancyP },
                 include: {
                     planilla: {
                         include: {
                             agencia: true,
-                            correspondencias: true,
+                            correspondencias: { where: tenancyC },
                         }
                     }
                 }
@@ -23,10 +38,10 @@ export default async function RecorridosPage() {
         }
     })
 
-    // Contar planillas abiertas y cerradas
+    // Contar planillas abiertas y cerradas (dentro del alcance)
     const [planillasAbiertas, planillasCerradas] = await Promise.all([
-        prisma.planilla.count({ where: { estado: "GENERADA", tipo: "ENTRANTE" } }),
-        prisma.planilla.count({ where: { estado: "CERRADA", tipo: "ENTRANTE" } }),
+        prisma.planilla.count({ where: { AND: [tenancyP, { estado: "GENERADA", tipo: "ENTRANTE" }] } }),
+        prisma.planilla.count({ where: { AND: [tenancyP, { estado: "CERRADA", tipo: "ENTRANTE" }] } }),
     ])
 
     // Transformar datos del recorrido activo para el cliente
@@ -113,6 +128,7 @@ export default async function RecorridosPage() {
                 recorridoActivo={recorridoActivo}
                 planillasAbiertas={planillasAbiertas}
                 planillasCerradas={planillasCerradas}
+                canManage={canManage}
             />
         </div>
     )

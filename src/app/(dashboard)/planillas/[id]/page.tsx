@@ -4,12 +4,17 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import Link from "next/link"
 import { Prisma } from "@prisma/client"
-import { ArrowLeft, Building2, Calendar, Hash, Lock, Unlock, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Building2, Calendar, Hash } from "lucide-react"
 import PrintButton from "../PrintButton"
 import PlanillaDetailStatusButton from "../PlanillaDetailStatusButton"
 import RemoveItemButton from "./RemoveItemButton"
 import UploadFirmaForm from "./UploadFirmaForm"
 import FirmaPreview from "./FirmaPreview"
+import AccessDenied from "@/components/AccessDenied"
+import { can, requirePagePermission } from "@/lib/auth-guard"
+import { PERMISOS } from "@/lib/permissions-catalog"
+import { correspondenciaWhere, isGlobalScope, planillaWhere } from "@/lib/tenancy"
+import { audit } from "@/lib/audit"
 
 type PlanillaWithRelations = Prisma.PlanillaGetPayload<{
     include: {
@@ -26,21 +31,39 @@ type CorrespondenciaWithDetails = Prisma.CorrespondenciaGetPayload<{
 }>
 
 export default async function PlanillaDetailsPage(props: { params: Promise<{ id: string }> }) {
+    // H-003 / C-007: permiso del módulo; C-002: una planilla ajena responde 404
+    // (sin revelar su existencia). Las acciones de gestión solo se muestran con
+    // `planillas.gestionar` y, en todo caso, se re-verifican en servidor.
+    const auth = await requirePagePermission(PERMISOS.PLANILLAS_VER)
+    if (!auth.ok) return <AccessDenied permiso={auth.permiso} />
+    const ctx = auth.ctx
+    const canManage = await can(ctx, PERMISOS.PLANILLAS_GESTIONAR)
+
     const params = await props.params
     const id = parseInt(params.id)
+    if (isNaN(id)) return notFound()
 
-    const planilla: PlanillaWithRelations | null = await prisma.planilla.findUnique({
-        where: { id },
+    const planilla: PlanillaWithRelations | null = await prisma.planilla.findFirst({
+        where: { AND: [{ id }, planillaWhere(ctx)] },
         include: {
             agencia: true,
             correspondencias: {
+                where: correspondenciaWhere(ctx),
                 include: { agencia: true, anexos: { include: { tipoAnexo: true, detalles: true } } }
             },
             recorridoPlanillas: { include: { recorrido: true } }
         }
     })
 
-    if (!planilla) return notFound()
+    if (!planilla) {
+        // Si la planilla existe pero quedó fuera del alcance, dejamos rastro del
+        // intento (AC-004) y respondemos 404 para no revelar su existencia.
+        const existe = await prisma.planilla.findUnique({ where: { id }, select: { id: true, agenciaId: true } })
+        if (existe) {
+            await audit({ ctx, accion: "ACCESO_DENEGADO", entidad: "Planilla", entidadId: id, detalle: { via: "pagina", motivo: "planilla de otra agencia", agenciaObjeto: existe.agenciaId } })
+        }
+        return notFound()
+    }
 
     const recorridoActivo = planilla.recorridoPlanillas.some(
         rp => rp.recorrido.estado === "INICIADO"
@@ -58,7 +81,13 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
         PROCESADA: "bg-green-100 text-green-700",
     }[planilla.estado] ?? "bg-gray-100 text-gray-700"
 
-    const hasOutgoing = planilla.correspondencias.some(c => c.tipo === "SALIENTE")
+    const hasOutgoing = planilla.tipo === "SALIENTE"
+    // R-030/R-031: una planilla SALIENTE es compartida por todas las agencias: su
+    // gestión y su soporte firmado (hoja impresa completa) son solo de alcance global.
+    const globalScope = isGlobalScope(ctx)
+    const canManageThis = canManage && (!hasOutgoing || globalScope)
+    const canSeeFirma = !hasOutgoing || globalScope
+    const showRemove = canManageThis && planilla.estado === "GENERADA"
 
     return (
         <div className="max-w-5xl mx-auto space-y-6 print:max-w-none print:mx-0 print:p-0 print:space-y-4">
@@ -66,8 +95,8 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
                 <style dangerouslySetInnerHTML={{ __html: `
                     @media print {
                         @page { size: landscape; margin: 5mm; }
-                        body { 
-                            -webkit-print-color-adjust: exact; 
+                        body {
+                            -webkit-print-color-adjust: exact;
                             print-color-adjust: exact;
                             background-color: white !important;
                             margin: 0 !important;
@@ -79,8 +108,8 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
                 <style dangerouslySetInnerHTML={{ __html: `
                     @media print {
                         @page { size: portrait; margin: 10mm; }
-                        body { 
-                            -webkit-print-color-adjust: exact; 
+                        body {
+                            -webkit-print-color-adjust: exact;
                             print-color-adjust: exact;
                             background-color: white !important;
                             margin: 0 !important;
@@ -103,11 +132,13 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
                     <span className={`text-sm font-semibold px-3 py-1.5 rounded-xl ${estadoColor}`}>
                         {estadoLabel}
                     </span>
-                    <PlanillaDetailStatusButton
-                        planillaId={planilla.id}
-                        estado={planilla.estado}
-                        recorridoActivo={recorridoActivo}
-                    />
+                    {canManageThis && (
+                        <PlanillaDetailStatusButton
+                            planillaId={planilla.id}
+                            estado={planilla.estado}
+                            recorridoActivo={recorridoActivo}
+                        />
+                    )}
                     <PrintButton />
                 </div>
             </div>
@@ -161,7 +192,7 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
                                                     <th className="text-left py-3 px-3 print:py-1.5 print:px-1 font-semibold text-gray-600">No. SOBRES</th>
                                                     <th className="text-left py-3 px-3 print:py-1.5 print:px-1 font-semibold text-gray-600 w-32 print:w-36">RECIBIDO POR</th>
                                                     <th className="text-left py-3 px-3 print:py-1.5 print:px-1 font-semibold text-gray-600 w-32 print:w-36">ENTREGA RADICADOR</th>
-                                                    {planilla.estado === "GENERADA" && (
+                                                    {showRemove && (
                                                         <th className="text-center py-3 px-3 print:py-1.5 print:px-1 font-semibold text-gray-600 w-16 print:hidden">Acción</th>
                                                     )}
                                                 </tr>
@@ -204,7 +235,7 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
                                                         <td className="py-4 px-3 print:py-1.5 print:px-1">
                                                             <div className="h-10 border-b-2 border-gray-300 print:border-black" />
                                                         </td>
-                                                        {planilla.estado === "GENERADA" && (
+                                                        {showRemove && (
                                                             <td className="py-4 px-3 print:py-1.5 print:px-1 text-center print:hidden">
                                                                 <RemoveItemButton itemId={item.id} />
                                                             </td>
@@ -223,6 +254,11 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
                                 </div>
                             </div>
                         ))}
+                        {planilla.correspondencias.length === 0 && (
+                            <div className="p-10 text-center text-sm text-gray-500">
+                                No hay piezas visibles en esta planilla para su alcance.
+                            </div>
+                        )}
                     </>
                 ) : (
                     <>
@@ -263,7 +299,7 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
                                             <th className="text-left py-3 px-3 print:py-1.5 print:px-1 font-semibold text-gray-600">Asunto</th>
                                             <th className="text-left py-3 px-3 print:py-1.5 print:px-1 font-semibold text-gray-600">Anexos</th>
                                             <th className="text-left py-3 px-3 print:py-1.5 print:px-1 font-semibold text-gray-600 w-36 print:w-48">Estado / Firma</th>
-                                            {planilla.estado === "GENERADA" && (
+                                            {showRemove && (
                                                 <th className="text-center py-3 px-3 print:py-1.5 print:px-1 font-semibold text-gray-600 w-16 print:hidden">Acción</th>
                                             )}
                                         </tr>
@@ -292,7 +328,7 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
                                                                     <span className="font-semibold">{a.cantidad}</span> {a.tipoAnexo.name}
                                                                     {a.detalles && a.detalles.length > 0 && (
                                                                         <div className="text-[10px] text-gray-500 ml-2 mt-0.5">
-                                                                            ({a.detalles.map((d: any) => d.identificador).join(", ")})
+                                                                            ({a.detalles.map(d => d.identificador).join(", ")})
                                                                         </div>
                                                                     )}
                                                                 </li>
@@ -314,7 +350,7 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
                                                         <div className="h-12 border-b-2 border-gray-300 print:border-black" />
                                                     )}
                                                 </td>
-                                                {planilla.estado === "GENERADA" && (
+                                                {showRemove && (
                                                     <td className="py-4 px-3 print:py-1.5 print:px-1 text-center print:hidden">
                                                         <RemoveItemButton itemId={item.id} />
                                                     </td>
@@ -356,15 +392,14 @@ export default async function PlanillaDetailsPage(props: { params: Promise<{ id:
                 )}
             </div>
 
-            {hasOutgoing && planilla.estado !== "GENERADA" && (
+            {canManageThis && hasOutgoing && planilla.estado !== "GENERADA" && (
                 <UploadFirmaForm planillaId={planilla.id} currentUrl={planilla.documentoFirmaUrl} />
             )}
 
-            {/* Req. cliente #4: previsualización del PDF/imagen de firma adjunto */}
-            {hasOutgoing && planilla.documentoFirmaUrl && (
+            {/* Req. cliente #4: previsualización del PDF/imagen de firma adjunto (solo alcance global en salientes — R-030) */}
+            {hasOutgoing && canSeeFirma && planilla.documentoFirmaUrl && (
                 <FirmaPreview url={planilla.documentoFirmaUrl} />
             )}
         </div>
     )
 }
-

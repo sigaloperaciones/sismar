@@ -1,6 +1,7 @@
 /**
  * Script de rotación de contraseñas de usuarios semilla.
- * (Remediación operativa — Auditoría FOSCAL: los usuarios seed venían con `123456`.)
+ * (Remediación operativa — Auditoría FOSCAL; H-003 / C-001: además REVOCA las
+ * sesiones activas del usuario y reinicia su bloqueo de cuenta.)
  *
  * USO:
  *   npx tsx prisma/rotate-passwords.ts                  # rota admin, mensajero, gerencia, talento
@@ -26,7 +27,7 @@ async function main() {
 
     console.log(`\n== Rotación de contraseñas (${targets.length} usuario(s)) ==\n`)
 
-    const resultados: Array<{ usuario: string; nueva: string }> = []
+    const resultados: Array<{ usuario: string; nueva: string; sesiones: number }> = []
 
     for (const username of targets) {
         const user = await prisma.usuario.findUnique({ where: { username } })
@@ -36,8 +37,18 @@ async function main() {
         }
         const nueva = generateStrongPassword(16)
         const hash = await bcrypt.hash(nueva, 12)
-        await prisma.usuario.update({ where: { id: user.id }, data: { password: hash } })
-        resultados.push({ usuario: username, nueva })
+        const now = new Date()
+        const [, revocadas] = await prisma.$transaction([
+            prisma.usuario.update({
+                where: { id: user.id },
+                data: { password: hash, failedLoginAttempts: 0, lockedUntil: null },
+            }),
+            prisma.sesion.updateMany({ where: { usuarioId: user.id, revokedAt: null }, data: { revokedAt: now } }),
+            prisma.auditLog.create({
+                data: { usuarioId: user.id, username: user.username, accion: "SESIONES_REVOCADAS", entidad: "Usuario", entidadId: String(user.id), detalle: { motivo: "rotacion de contraseña (script)" } },
+            }),
+        ])
+        resultados.push({ usuario: username, nueva, sesiones: revocadas.count })
     }
 
     if (resultados.length === 0) {
@@ -46,14 +57,14 @@ async function main() {
     }
 
     console.log("  Guarda estas credenciales AHORA (no se volverán a mostrar):\n")
-    console.log("  ┌───────────────┬──────────────────────┐")
-    console.log("  │ USUARIO       │ NUEVA CONTRASEÑA     │")
-    console.log("  ├───────────────┼──────────────────────┤")
+    console.log("  ┌───────────────┬──────────────────────┬──────────┐")
+    console.log("  │ USUARIO       │ NUEVA CONTRASEÑA     │ SESIONES │")
+    console.log("  ├───────────────┼──────────────────────┼──────────┤")
     for (const r of resultados) {
-        console.log(`  │ ${r.usuario.padEnd(13)} │ ${r.nueva.padEnd(20)} │`)
+        console.log(`  │ ${r.usuario.padEnd(13)} │ ${r.nueva.padEnd(20)} │ ${String(r.sesiones).padStart(8)} │`)
     }
-    console.log("  └───────────────┴──────────────────────┘\n")
-    console.log(`  ✅ ${resultados.length} contraseña(s) rotada(s) correctamente.\n`)
+    console.log("  └───────────────┴──────────────────────┴──────────┘\n")
+    console.log(`  ✅ ${resultados.length} contraseña(s) rotada(s); sesiones activas revocadas.\n`)
 }
 
 main()

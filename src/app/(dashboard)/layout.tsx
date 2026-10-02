@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { requireSession } from "@/lib/auth-guard";
 import { getUserPermissions } from "@/lib/permissions";
 import LayoutWrapper from "@/components/layout/LayoutWrapper";
 
@@ -8,19 +7,16 @@ export default async function DashboardLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const session = await getSession();
-    if (!session) redirect("/login");
+    // H-003 / C-001: sesión VIVA en BD y rol/agencia frescos (no el JWT).
+    // Si la sesión fue revocada o el usuario ya no existe → /login.
+    const ctx = await requireSession();
 
     // Guardian (req. cliente #2): el menú se construye con los permisos EFECTIVOS
-    // del usuario (rol + overrides), no solo con el rol. Así, denegar un permiso
-    // oculta el módulo correspondiente sin tocar cada usuario individualmente.
-    const permisos = await getUserPermissions(
-        session.userId as number,
-        session.role as string
-    );
+    // del usuario (rol + overrides). Las páginas y acciones re-verifican en servidor.
+    const permisos = await getUserPermissions(ctx.userId, ctx.role);
 
     return (
-        <LayoutWrapper session={session} permissions={Array.from(permisos)}>
+        <LayoutWrapper session={{ username: ctx.username, role: ctx.role }} permissions={Array.from(permisos)}>
             {children}
         </LayoutWrapper>
     );

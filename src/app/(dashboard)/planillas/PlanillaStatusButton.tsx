@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { closePlanillaAction, reopenPlanillaAction } from "@/app/actions/panillas"
+import { closePlanillaAction, reopenPlanillaAction } from "@/app/actions/planillas"
 import { Lock, Unlock } from "lucide-react"
 
 export default function PlanillaStatusButton({ planillaId, estado, tipo }: { planillaId: number; estado: string; tipo?: string }) {

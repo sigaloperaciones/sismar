@@ -1,126 +1,120 @@
+/**
+ * Seed de SISMAR — NO DESTRUCTIVO (H-003 / C-012 — hallazgo M-02).
+ *
+ *  - Jamás borra datos: catálogos y permisos se sincronizan con upsert.
+ *  - Los usuarios iniciales solo se crean si la tabla `Usuario` está VACÍA.
+ *  - Sin credenciales conocidas: cada contraseña viene de una variable de
+ *    entorno (SEED_ADMIN_PASSWORD, SEED_MENSAJERO_PASSWORD, SEED_GERENCIA_PASSWORD,
+ *    SEED_TALENTO_PASSWORD) o, si falta, se GENERA una contraseña fuerte que se
+ *    imprime UNA sola vez en pantalla (nunca se escribe a disco ni a logs).
+ *  - En producción (NODE_ENV=production) aborta salvo SEED_ALLOW_PRODUCTION=1.
+ *
+ * Uso:
+ *   npx tsx prisma/seed.ts
+ */
 import { PrismaClient } from '@prisma/client'
 import * as bcrypt from 'bcryptjs'
+import { generateStrongPassword } from '../src/lib/password'
+import { syncPermissions } from '../src/lib/permissions-sync'
 
 const prisma = new PrismaClient()
 
+const BCRYPT_COST = 12
+
 async function main() {
-    console.log('Seeding database...')
-
-    // Clean up (orden respeta foreign keys)
-    try {
-        await prisma.usuarioPermiso.deleteMany()
-        await prisma.rolPermiso.deleteMany()
-        await prisma.permiso.deleteMany()
-        await prisma.anexo.deleteMany()
-        await prisma.correspondencia.deleteMany()
-        await prisma.planilla.deleteMany()
-        await prisma.usuario.deleteMany()
-        await prisma.agencia.deleteMany()
-        await prisma.centroCosto.deleteMany()
-        await prisma.sede.deleteMany()
-        await prisma.tipoAnexo.deleteMany()
-        await prisma.empresaConfig.deleteMany()
-    } catch (e) {
-        console.log('Error limpiando tablas (pueden no existir aún):', e)
+    if (process.env.NODE_ENV === 'production' && process.env.SEED_ALLOW_PRODUCTION !== '1') {
+        console.error('✖ Seed bloqueado: NODE_ENV=production. Si realmente desea sembrar una base NUEVA, exporte SEED_ALLOW_PRODUCTION=1.')
+        process.exit(2)
     }
 
-    // ── EmpresaConfig ────────────────────────────────────────────────────────
-    await prisma.empresaConfig.create({
-        data: {
-            nombre: 'Mi Empresa S.A.S.',
-            nit: '900.123.456-7',
-        },
+    console.log('Seeding database (modo no destructivo)...')
+
+    // ── EmpresaConfig (solo si no existe) ────────────────────────────────────
+    const configCount = await prisma.empresaConfig.count()
+    if (configCount === 0) {
+        await prisma.empresaConfig.create({
+            data: { nombre: 'Mi Empresa S.A.S.', nit: '900.123.456-7' },
+        })
+        console.log('  · EmpresaConfig inicial creada')
+    }
+
+    // ── Estructura organizativa (upsert por nombre/código) ───────────────────
+    let sedePrincipal = await prisma.sede.findFirst({ where: { name: 'Sede Principal' } })
+    if (!sedePrincipal) {
+        sedePrincipal = await prisma.sede.create({ data: { name: 'Sede Principal', address: 'Calle 123 # 45-67' } })
+    }
+
+    const ccAdmin = await prisma.centroCosto.upsert({
+        where: { code: '001' },
+        create: { code: '001', name: 'Administración' },
+        update: {},
+    })
+    const ccRecursos = await prisma.centroCosto.upsert({
+        where: { code: '002' },
+        create: { code: '002', name: 'Recursos Humanos' },
+        update: {},
     })
 
-    // ── Estructura organizativa ───────────────────────────────────────────────
-    const sedePrincipal = await prisma.sede.create({
-        data: { name: 'Sede Principal', address: 'Calle 123 # 45-67' },
-    })
+    async function ensureAgencia(name: string, centroCostoId: number) {
+        const existing = await prisma.agencia.findFirst({ where: { name } })
+        if (existing) return existing
+        return prisma.agencia.create({ data: { name, sedeId: sedePrincipal!.id, centroCostoId } })
+    }
+    const agenciaGerencia = await ensureAgencia('Gerencia General', ccAdmin.id)
+    const agenciaTalento = await ensureAgencia('Talento Humano', ccRecursos.id)
 
-    const ccAdmin = await prisma.centroCosto.create({
-        data: { code: '001', name: 'Administración' },
-    })
-    const ccRecursos = await prisma.centroCosto.create({
-        data: { code: '002', name: 'Recursos Humanos' },
-    })
-
-    const agenciaGerencia = await prisma.agencia.create({
-        data: { name: 'Gerencia General', sedeId: sedePrincipal.id, centroCostoId: ccAdmin.id },
-    })
-    const agenciaTalento = await prisma.agencia.create({
-        data: { name: 'Talento Humano', sedeId: sedePrincipal.id, centroCostoId: ccRecursos.id },
-    })
-
-    // ── Usuarios ──────────────────────────────────────────────────────────────
-    const passwordHash = await bcrypt.hash('123456', 10)
-
-    await prisma.usuario.create({ data: { username: 'admin', password: passwordHash, role: 'ADMIN' } })
-    await prisma.usuario.create({ data: { username: 'mensajero', password: passwordHash, role: 'MENSAJERO' } })
-    await prisma.usuario.create({ data: { username: 'gerencia', password: passwordHash, role: 'AGENCIA', agenciaId: agenciaGerencia.id } })
-    await prisma.usuario.create({ data: { username: 'talento', password: passwordHash, role: 'AGENCIA', agenciaId: agenciaTalento.id } })
-
-    // ── Tipos de Anexo ────────────────────────────────────────────────────────
+    // ── Tipos de Anexo ───────────────────────────────────────────────────────
     for (const name of ['Documento', 'Paquete', 'CD', 'USB', 'Contrato', 'Tutela', 'Factura', 'Otro']) {
-        await prisma.tipoAnexo.create({ data: { name } })
+        await prisma.tipoAnexo.upsert({ where: { name }, create: { name }, update: {} })
     }
 
-    // ── Permisos ──────────────────────────────────────────────────────────────
-    const permisosData = [
-        // Correspondencia
-        { codigo: 'correspondencia.entrante.ver', nombre: 'Ver Correspondencia Entrante', modulo: 'correspondencia' },
-        { codigo: 'correspondencia.entrante.crear', nombre: 'Registrar Correspondencia Entrante', modulo: 'correspondencia' },
-        { codigo: 'correspondencia.saliente.ver', nombre: 'Ver Correspondencia Saliente', modulo: 'correspondencia' },
-        { codigo: 'correspondencia.saliente.crear', nombre: 'Registrar Correspondencia Saliente', modulo: 'correspondencia' },
-        // Planillas
-        { codigo: 'planillas.ver', nombre: 'Ver Planillas de Entrega', modulo: 'planillas' },
-        { codigo: 'planillas.crear', nombre: 'Generar Planillas de Entrega', modulo: 'planillas' },
-        // Recorridos
-        { codigo: 'recorridos.ver', nombre: 'Ver Recorridos', modulo: 'recorridos' },
-        { codigo: 'recorridos.gestionar', nombre: 'Confirmar/Devolver Entregas', modulo: 'recorridos' },
-        // Reportes
-        { codigo: 'reportes.ver', nombre: 'Ver Reportes', modulo: 'reportes' },
-        // Admin
-        { codigo: 'admin.usuarios.ver', nombre: 'Ver Usuarios', modulo: 'admin' },
-        { codigo: 'admin.usuarios.gestionar', nombre: 'Crear/Editar/Eliminar Usuarios', modulo: 'admin' },
-        { codigo: 'admin.config.ver', nombre: 'Ver Configuración de Empresa', modulo: 'admin' },
-        { codigo: 'admin.config.gestionar', nombre: 'Editar Configuración de Empresa', modulo: 'admin' },
-        { codigo: 'admin.permisos.ver', nombre: 'Ver Matriz de Permisos', modulo: 'admin' },
-        { codigo: 'admin.permisos.gestionar', nombre: 'Editar Matriz de Permisos', modulo: 'admin' },
-    ]
+    // ── Permisos y permisos por rol (catálogo único, idempotente) ────────────
+    const sync = await syncPermissions(prisma)
+    console.log(`  · Permisos sincronizados: ${sync.permisos} permisos, ${sync.rolPermisosCreados} asignaciones de rol nuevas`)
 
-    const permisos = await Promise.all(
-        permisosData.map(p => prisma.permiso.create({ data: p }))
-    )
+    // ── Usuarios iniciales: SOLO si la tabla está vacía ──────────────────────
+    const userCount = await prisma.usuario.count()
+    if (userCount > 0) {
+        console.log(`  · La base ya tiene ${userCount} usuario(s): no se crean usuarios iniciales.`)
+    } else {
+        const definiciones = [
+            { username: 'admin', role: 'ADMIN' as const, agenciaId: null, env: 'SEED_ADMIN_PASSWORD' },
+            { username: 'mensajero', role: 'MENSAJERO' as const, agenciaId: null, env: 'SEED_MENSAJERO_PASSWORD' },
+            { username: 'gerencia', role: 'AGENCIA' as const, agenciaId: agenciaGerencia.id, env: 'SEED_GERENCIA_PASSWORD' },
+            { username: 'talento', role: 'AGENCIA' as const, agenciaId: agenciaTalento.id, env: 'SEED_TALENTO_PASSWORD' },
+        ]
 
-    const permisoMap = Object.fromEntries(permisos.map(p => [p.codigo, p.id]))
+        // R-039: una contraseña de entorno inválida ABORTA (no se genera otra en silencio).
+        const cumplePolitica = (p: string) => p.length >= 8 && /[a-z]/.test(p) && /[A-Z]/.test(p) && /[0-9]/.test(p)
+        for (const d of definiciones) {
+            const fromEnv = process.env[d.env]
+            if (fromEnv !== undefined && !cumplePolitica(fromEnv)) {
+                console.error(`✖ ${d.env} no cumple la política (≥ 8 caracteres con mayúscula, minúscula y número). No se crea ningún usuario.`)
+                process.exit(3)
+            }
+        }
 
-    // ── RolPermiso por defecto ────────────────────────────────────────────────
-    const rolPermisosData: Array<{ rol: string; codigo: string; concedido: boolean }> = [
-        // ADMIN: todos los permisos
-        ...permisosData.map(p => ({ rol: 'ADMIN', codigo: p.codigo, concedido: true })),
+        const generadas: Array<{ usuario: string; clave: string }> = []
+        for (const d of definiciones) {
+            const fromEnv = process.env[d.env]
+            const clave = fromEnv ?? generateStrongPassword(16)
+            if (!fromEnv) generadas.push({ usuario: d.username, clave })
+            const hash = await bcrypt.hash(clave, BCRYPT_COST)
+            await prisma.usuario.create({
+                data: { username: d.username, password: hash, role: d.role, agenciaId: d.agenciaId },
+            })
+        }
+        console.log(`  · ${definiciones.length} usuarios iniciales creados`)
 
-        // MENSAJERO
-        { rol: 'MENSAJERO', codigo: 'correspondencia.entrante.ver', concedido: true },
-        { rol: 'MENSAJERO', codigo: 'correspondencia.saliente.ver', concedido: true },
-        { rol: 'MENSAJERO', codigo: 'planillas.ver', concedido: true },
-        { rol: 'MENSAJERO', codigo: 'recorridos.ver', concedido: true },
-        { rol: 'MENSAJERO', codigo: 'recorridos.gestionar', concedido: true },
-
-        // AGENCIA
-        { rol: 'AGENCIA', codigo: 'correspondencia.entrante.ver', concedido: true },
-        { rol: 'AGENCIA', codigo: 'correspondencia.entrante.crear', concedido: true },
-        { rol: 'AGENCIA', codigo: 'correspondencia.saliente.ver', concedido: true },
-        { rol: 'AGENCIA', codigo: 'correspondencia.saliente.crear', concedido: true },
-        { rol: 'AGENCIA', codigo: 'planillas.ver', concedido: true },
-        { rol: 'AGENCIA', codigo: 'reportes.ver', concedido: true },
-    ]
-
-    // SEC-018: una sola query en lugar de N inserts secuenciales
-    await prisma.rolPermiso.createMany({
-        data: rolPermisosData
-            .filter(rp => permisoMap[rp.codigo])
-            .map(rp => ({ rol: rp.rol, permisoId: permisoMap[rp.codigo], concedido: rp.concedido })),
-    })
+        if (generadas.length > 0) {
+            console.log('\n  Contraseñas GENERADAS (guárdelas AHORA en un gestor seguro; no se volverán a mostrar):\n')
+            console.log('  ┌───────────────┬──────────────────────┐')
+            console.log('  │ USUARIO       │ CONTRASEÑA           │')
+            console.log('  ├───────────────┼──────────────────────┤')
+            for (const g of generadas) console.log(`  │ ${g.usuario.padEnd(13)} │ ${g.clave.padEnd(20)} │`)
+            console.log('  └───────────────┴──────────────────────┘\n')
+        }
+    }
 
     console.log('✅ Seed completado.')
 }
@@ -128,7 +122,7 @@ async function main() {
 main()
     .then(async () => { await prisma.$disconnect() })
     .catch(async (e) => {
-        console.error(e)
+        console.error('Error en seed:', e instanceof Error ? e.message : String(e))
         await prisma.$disconnect()
         process.exit(1)
     })

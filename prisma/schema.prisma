@@ -7,6 +7,50 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums (H-003 / C-013 — hallazgo B-02): la integridad del dominio vive en la BD,
+// no solo en Zod. La migración convierte las columnas TEXT existentes con USING.
+// ─────────────────────────────────────────────────────────────────────────────
+enum Role {
+  ADMIN
+  MENSAJERO
+  AGENCIA
+}
+
+enum TipoCorrespondencia {
+  ENTRANTE
+  SALIENTE
+}
+
+enum Importancia {
+  NORMAL
+  ALTA
+}
+
+enum EstadoCorrespondencia {
+  POR_ENTREGAR
+  ENTREGADA
+  DEVUELTA
+}
+
+enum EstadoPlanilla {
+  GENERADA
+  CERRADA
+  PROCESADA
+}
+
+enum TipoRecorrido {
+  AM
+  PM
+  EXCEPCIONAL
+}
+
+enum EstadoRecorrido {
+  INICIADO
+  TERMINADO
+  ANULADO
+}
+
 model Sede {
   id        Int       @id @default(autoincrement())
   name      String
@@ -54,10 +98,54 @@ model Usuario {
   username        String           @unique
   email           String?
   password        String
-  role            String           @default("AGENCIA") // ADMIN, MENSAJERO, AGENCIA
+  role            Role             @default(AGENCIA)
   agenciaId       Int?
   agencia         Agencia?         @relation(fields: [agenciaId], references: [id])
   usuarioPermisos UsuarioPermiso[]
+
+  // H-003 / C-008 (M-08): bloqueo persistente de cuenta tras N fallos de login.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  sesiones  Sesion[]
+  auditLogs AuditLog[]
+}
+
+// H-003 / C-001 (A-05): store de sesión en BD. El JWT solo transporta `sid`;
+// rol y agencia se leen de `Usuario` en cada petición. Revocable (logout,
+// borrado, cambio de rol/contraseña). Expiración absoluta.
+model Sesion {
+  id         String    @id
+  usuarioId  Int
+  usuario    Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime  @default(now())
+  ip         String?
+  userAgent  String?
+
+  @@index([usuarioId])
+  @@index([expiresAt])
+}
+
+// H-003 / C-011 (M-07): bitácora append-only de operaciones (quién, qué, cuándo,
+// desde dónde). La aplicación nunca actualiza ni borra filas de esta tabla.
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  fecha     DateTime @default(now())
+  usuarioId Int?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  username  String?
+  accion    String
+  entidad   String?
+  entidadId String?
+  detalle   Json?
+  ip        String?
+
+  @@index([fecha])
+  @@index([usuarioId])
+  @@index([entidad, entidadId])
 }
 
 model TipoAnexo {
@@ -71,7 +159,7 @@ model Correspondencia {
   consecutive         String?
 
   // Tipo: ENTRANTE (de externos hacia agencias) | SALIENTE (de agencias hacia externos)
-  tipo                String    @default("ENTRANTE")
+  tipo                TipoCorrespondencia @default(ENTRANTE)
 
   fechaRecepcion      DateTime  @default(now())
 
@@ -82,10 +170,10 @@ model Correspondencia {
   destinatarioNombre  String?
 
   asunto              String
-  importancia         String    @default("NORMAL") // NORMAL, ALTA
+  importancia         Importancia @default(NORMAL)
   necesitaRespuesta   Boolean   @default(false)
 
-  estado              String    @default("POR_ENTREGAR") // POR_ENTREGAR, ENTREGADA, DEVUELTA
+  estado              EstadoCorrespondencia @default(POR_ENTREGAR)
 
   // Agencia relacionada (destinataria en entrante, remitente en saliente)
   agenciaId           Int
@@ -96,7 +184,7 @@ model Correspondencia {
 
   // Documentos escaneados
   documentoRecibidoUrl String?
-  
+
   // Datos de guía para correspondencia saliente
   numeroGuia          String?
   mensajero           String?
@@ -111,8 +199,17 @@ model Correspondencia {
   observacionDevolucion String?
   observacionAgencia    String?
 
+  // H-003 / C-011 (M-07): autoría
+  createdBy           String?
+  updatedBy           String?
+
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+
+  @@index([estado, tipo, agenciaId])
+  @@index([agenciaId])
+  @@index([planillaId])
+  @@index([createdAt])
 }
 
 model Anexo {
@@ -138,23 +235,35 @@ model Planilla {
   agenciaId         Int?
   agencia           Agencia?  @relation(fields: [agenciaId], references: [id])
   empresaMensajeria String?
-  estado          String    @default("GENERADA") // GENERADA, CERRADA, PROCESADA
-  tipo            String    @default("ENTRANTE") // ENTRANTE, SALIENTE
+  estado            EstadoPlanilla      @default(GENERADA)
+  tipo              TipoCorrespondencia @default(ENTRANTE)
   documentoFirmaUrl String? // PDF o foto de la planilla saliente firmada por el mensajero
+
+  // H-003 / C-011 (M-07): autoría
+  createdBy         String?
 
   correspondencias Correspondencia[]
   recorridoPlanillas RecorridoPlanilla[]
+
+  @@index([estado, tipo])
+  @@index([agenciaId])
 }
 
 model Recorrido {
   id          Int      @id @default(autoincrement())
   fecha       DateTime @default(now())
-  tipo        String   @default("AM") // AM, PM, EXCEPCIONAL
-  estado      String   @default("INICIADO") // INICIADO, TERMINADO, ANULADO
+  tipo        TipoRecorrido   @default(AM)
+  estado      EstadoRecorrido @default(INICIADO)
   notas       String?
   creadoPor   String?
 
   planillas   RecorridoPlanilla[]
+
+  // NOTA: además existe el índice único PARCIAL "Recorrido_unico_iniciado_idx"
+  // (WHERE estado = 'INICIADO'), creado por la migración
+  // 20261001133000_h003_recorrido_unico_activo. Prisma no lo modela: si
+  // `migrate dev` propone eliminarlo por "drift", NO aceptar.
+  @@index([estado])
 }
 
 model RecorridoPlanilla {
@@ -174,7 +283,7 @@ model EmpresaConfig {
   nit            String?
   logoUrl        String?
   uploadsDir     String?
-  // Colores en formato HSL string, ej: "221.2 83.2% 53.3%"
+  // Colores en formato HSL string, ej: "221.2 83.2% 53.3%" (validado: C-010)
   colorPrimary   String?
   colorSecondary String?
   colorAccent    String?
@@ -196,7 +305,7 @@ model Permiso {
 // Permisos por defecto asignados a cada rol
 model RolPermiso {
   id        Int     @id @default(autoincrement())
-  rol       String  // ADMIN, MENSAJERO, AGENCIA
+  rol       Role
   permisoId Int
   permiso   Permiso @relation(fields: [permisoId], references: [id])
   concedido Boolean @default(true)

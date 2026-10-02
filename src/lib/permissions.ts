@@ -1,13 +1,17 @@
+import type { Role } from '@prisma/client'
 import { prisma } from './prisma'
+
+export { PERMISOS } from './permissions-catalog'
 
 /**
  * Resuelve si un usuario tiene un permiso específico.
  * Prioridad: override de usuario > permiso por defecto del rol.
  * Si no existe fila en UsuarioPermiso → hereda del rol.
+ * Si el permiso no existe en el catálogo → false (deniega por defecto).
  */
 export async function hasPermission(
     userId: number,
-    userRole: string,
+    userRole: Role | string,
     permissionCode: string
 ): Promise<boolean> {
     const permiso = await prisma.permiso.findUnique({ where: { codigo: permissionCode } })
@@ -22,7 +26,7 @@ export async function hasPermission(
 
     // Fallback al permiso del rol
     const rolPermiso = await prisma.rolPermiso.findUnique({
-        where: { rol_permisoId: { rol: userRole, permisoId: permiso.id } },
+        where: { rol_permisoId: { rol: userRole as Role, permisoId: permiso.id } },
     })
 
     return rolPermiso?.concedido ?? false
@@ -32,10 +36,10 @@ export async function hasPermission(
  * Carga todos los permisos efectivos de un usuario como Set<string> de códigos.
  * Eficiente: una sola consulta por tabla.
  */
-export async function getUserPermissions(userId: number, userRole: string): Promise<Set<string>> {
+export async function getUserPermissions(userId: number, userRole: Role | string): Promise<Set<string>> {
     const [rolePermisos, userOverrides] = await Promise.all([
         prisma.rolPermiso.findMany({
-            where: { rol: userRole, concedido: true },
+            where: { rol: userRole as Role, concedido: true },
             include: { permiso: true },
         }),
         prisma.usuarioPermiso.findMany({

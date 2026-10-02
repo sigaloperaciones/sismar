@@ -7,7 +7,7 @@ import path from 'path'
  * REALMENTE en las server actions (regresión estática).
  */
 const CASES = [
-    { file: 'correspondencia.ts', schemas: ['incomingMailSchema', 'outgoingMailSchema'] },
+    { file: 'correspondencia.ts', schemas: ['incomingMailSchema', 'outgoingMailSchema', 'updateMailSchema'] },
     { file: 'admin.ts', schemas: ['empresaConfigSchema', 'createUserSchema', 'updateUserSchema'] },
 ]
 

@@ -1,8 +1,15 @@
+import AccessDenied from "@/components/AccessDenied"
+import { requireAdminPage } from "@/lib/auth-guard"
 import { prisma } from "@/lib/prisma"
 import { MapPin } from "lucide-react"
 import CiudadesClient from "./CiudadesClient"
 
 export default async function CiudadesPage() {
+    // H-003 / R-028 (AC-016): guard PROPIO. Los layouts de Next no son frontera de
+    // seguridad (una petición RSC puede declararlos ya renderizados). El layout
+    // /admin queda como defensa adicional.
+    const auth = await requireAdminPage()
+    if (!auth.ok) return <AccessDenied permiso="rol ADMIN" />
     const ciudades = await prisma.ciudad.findMany({
         orderBy: [{ departamento: "asc" }, { nombre: "asc" }]
     })

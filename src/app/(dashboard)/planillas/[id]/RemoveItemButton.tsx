@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { removeCorrespondenciaFromPlanillaAction } from "@/app/actions/panillas"
+import { removeCorrespondenciaFromPlanillaAction } from "@/app/actions/planillas"
 import { Trash2 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 

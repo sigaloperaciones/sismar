@@ -1,3 +1,5 @@
+import AccessDenied from "@/components/AccessDenied"
+import { requireAdminPage } from "@/lib/auth-guard"
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +16,11 @@ const rolColors: Record<string, "default" | "secondary" | "outline"> = {
 }
 
 export default async function UsuariosPage() {
+    // H-003 / R-028 (AC-016): guard PROPIO. Los layouts de Next no son frontera de
+    // seguridad (una petición RSC puede declararlos ya renderizados). El layout
+    // /admin queda como defensa adicional.
+    const auth = await requireAdminPage()
+    if (!auth.ok) return <AccessDenied permiso="rol ADMIN" />
     const usuarios = await prisma.usuario.findMany({
         include: { agencia: true },
         orderBy: { id: "asc" },
@@ -40,6 +47,7 @@ export default async function UsuariosPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Usuario</TableHead>
+                                <TableHead>Correo</TableHead>
                                 <TableHead>Rol</TableHead>
                                 <TableHead>Agencia</TableHead>
                                 <TableHead className="text-right">Acciones</TableHead>
@@ -49,6 +57,9 @@ export default async function UsuariosPage() {
                             {usuarios.map(usuario => (
                                 <TableRow key={usuario.id}>
                                     <TableCell className="font-medium">{usuario.username}</TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                        {usuario.email ?? <span className="italic">—</span>}
+                                    </TableCell>
                                     <TableCell>
                                         <Badge variant={rolColors[usuario.role] ?? "outline"}>
                                             {usuario.role}

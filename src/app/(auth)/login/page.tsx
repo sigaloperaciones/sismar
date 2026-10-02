@@ -1,11 +1,14 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { loginAction } from "@/app/actions/auth"
 
 export default function LoginPage() {
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
+    // H-003 / C-001: la sesión fue cerrada o revocada en el servidor.
+    const expired = useSearchParams().get("expired") === "1"
 
     async function handleSubmit(formData: FormData) {
         setLoading(true)
@@ -117,6 +120,13 @@ export default function LoginPage() {
                             />
                         </div>
 
+                        {expired && !error && (
+                            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                                <span className="mt-0.5">ⓘ</span>
+                                <span>Su sesión expiró o fue cerrada. Ingrese nuevamente.</span>
+                            </div>
+                        )}
+
                         {error && (
                             <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                                 <span className="mt-0.5">⚠</span>
@@ -141,6 +151,8 @@ export default function LoginPage() {
                         </button>
                     </form>
 
+                    {/* Branding AISerNet (obligatorio en toda app): NEBULA 10 pt */}
+                    <p className="brand-credit text-center text-slate-400 pt-4">By AISerNet Company</p>
                 </div>
             </div>
         </div>

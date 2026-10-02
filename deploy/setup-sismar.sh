@@ -16,6 +16,7 @@ cd "$(dirname "$0")/.."
 # ---- 0) Validar secretos requeridos ----------------------------------------
 : "${POSTGRES_PASSWORD:?ERROR: exporta POSTGRES_PASSWORD antes de correr el script}"
 : "${JWT_SECRET:?ERROR: exporta JWT_SECRET antes de correr el script}"
+: "${SITE_DOMAIN:?ERROR: exporta SITE_DOMAIN (dominio público, p.ej. app.ejemplo.test) — alimenta ALLOWED_HOSTS}"
 
 # ---- 1) Postgres (Docker, loopback :5433) ----------------------------------
 printf 'POSTGRES_USER=sismar\nPOSTGRES_PASSWORD=%s\nPOSTGRES_DB=sismar\n' \
@@ -35,6 +36,10 @@ done
 #     Lo leen tanto Prisma CLI como Next.js en producción.
 cat > .env <<EOF
 DATABASE_URL="postgresql://sismar:${POSTGRES_PASSWORD}@localhost:5433/sismar?schema=public"
+# H-003 / C-009: solo se redirige a estos hosts (anti open-redirect)
+ALLOWED_HOSTS="${SITE_DOMAIN}"
+# H-003 / C-006: archivos subidos FUERA de public/, servidos solo por /api/uploads
+UPLOADS_DIR="$(pwd)/storage/uploads"
 JWT_SECRET="${JWT_SECRET}"
 NODE_ENV=production
 EOF
@@ -49,9 +54,14 @@ export JWT_SECRET
 npm install --no-audit --no-fund
 npx prisma migrate deploy
 npx prisma generate
+# H-003: permisos nuevos (planillas.gestionar, correspondencia.recibir) y
+# traslado de archivos legados de public/uploads al directorio privado.
+npx tsx prisma/sync-permissions.ts
+npx tsx prisma/migrate-uploads.ts
 
 # ---- 4) Seed SOLO si la base está vacía (idempotente) ----------------------
-#     El seed usa `.create` (no `upsert`): re-ejecutarlo duplicaría/rompería.
+#     H-003 / C-012: el seed es NO destructivo (upsert) y solo crea usuarios si la
+#     tabla está vacía; aun así se mantiene la verificación por prudencia.
 USERS=$(docker exec sismar_postgres psql -U sismar -d sismar -tAc \
   'SELECT count(*) FROM "Usuario";' 2>/dev/null || echo "0")
 if [ "${USERS//[[:space:]]/}" = "0" ]; then

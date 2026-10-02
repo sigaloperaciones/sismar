@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useTransition } from "react"
-import { uploadPlanillaFirmaAction } from "@/app/actions/panillas"
+import { uploadPlanillaFirmaAction } from "@/app/actions/planillas"
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import { Upload, FileCheck, Loader2 } from "lucide-react"

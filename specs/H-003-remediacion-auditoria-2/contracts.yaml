@@ -1,0 +1,165 @@
+flujo: H-003
+titulo: Remediación Auditoría de Seguridad y Arquitectura N.º 2 (31/08/2026)
+estado_flujo: CERRADO tecnicamente el 01/10/2026 (Gate BDD con 252 tests + E2E; firma humana del Guardian pendiente)
+contratos:
+  - codigo: C-001
+    nombre: Contexto de autenticación fresco y sesión revocable
+    hallazgos: [A-05, B-01]
+    capa: [LOG, PER, GRD]
+    estado: CERRADO
+    reglas:
+      - requireSession() resuelve Sesion (sid) y Usuario en BD; devuelve rol/agencia frescos.
+      - Sesion revocada, expirada o inexistente => redirect /login y cookie limpiada.
+      - logout => Sesion.revokedAt = now; updateUser/deleteUser/rotación => revocar sesiones del usuario.
+      - Middleware no re-firma el JWT; expiración absoluta 24h; limpia cookie con SESSION_COOKIE_OPTIONS.
+    escenarios: [S-001, S-002, S-003]
+  - codigo: C-002
+    nombre: Alcance de tenencia por agencia en lecturas
+    hallazgos: [A-01]
+    capa: [LOG]
+    estado: CERRADO
+    reglas:
+      - src/lib/tenancy.ts expone scopeFor(ctx), correspondenciaWhere(ctx), planillaWhere(ctx).
+      - ADMIN y MENSAJERO => alcance global; AGENCIA => agenciaId propio; AGENCIA sin agencia => conjunto vacío.
+      - Dashboard, reportes, entrante, saliente, planillas, planillas/[id], recorridos usan el módulo.
+    escenarios: [S-004, S-005]
+  - codigo: C-003
+    nombre: Autorización por objeto en mutaciones de correspondencia
+    hallazgos: [A-02, B-06]
+    capa: [LOG, GRD]
+    estado: CERRADO
+    reglas:
+      - updateMailAction carga el registro; permiso según registro.tipo; pertenencia; Zod updateMailSchema; AGENCIA no reasigna agencia.
+      - aprobar/devolver exigen correspondencia.recibir + pertenencia + estado POR_ENTREGAR + planilla CERRADA en recorrido INICIADO.
+      - IDs ajenos => { error '(403)' } y AuditLog ACCESO_DENEGADO.
+    escenarios: [S-006, S-007, S-008]
+  - codigo: C-004
+    nombre: Permiso y dueño en el ciclo de vida de planillas
+    hallazgos: [A-03]
+    capa: [LOG, GRD]
+    estado: CERRADO
+    reglas:
+      - close/reopen/remove/uploadFirma exigen requirePermission('planillas.gestionar') + assertPlanillaAccess.
+      - processPlanilla exige requirePermission('correspondencia.recibir') + pertenencia (planilla.agenciaId).
+      - generatePlanilla exige planillas.crear + pertenencia de agenciaId solicitado.
+    escenarios: [S-009, S-010, S-028]
+  - codigo: C-005
+    nombre: Catálogos exclusivos de ADMIN y guard único
+    hallazgos: [A-04, M-01]
+    capa: [LOG, GRD]
+    estado: CERRADO
+    reglas:
+      - ciudades, empresas de mensajería y agencias exigen requireAdmin() de src/lib/auth-guard.ts.
+      - Se elimina el requireAdmin local de admin.ts.
+    escenarios: [S-011, S-027]
+  - codigo: C-006
+    nombre: Archivos privados con ACL por objeto y validación de contenido
+    hallazgos: [A-06, M-03]
+    capa: [LOG, GRD]
+    estado: CERRADO
+    reglas:
+      - Directorio = UPLOADS_DIR || EmpresaConfig.uploadsDir || <cwd>/storage/uploads; nunca bajo public/.
+      - URL siempre /api/uploads?filename=...; nombre generado en servidor (sin nombre original).
+      - validateUploadFile verifica magic bytes (PDF, PNG, JPEG) además de MIME/extensión/tamaño.
+      - GET /api/uploads exige sesión fresca + ACL por objeto referenciante (Correspondencia/Planilla/EmpresaConfig); si no, 403/404.
+      - Respuesta con nosniff, Content-Disposition y CSP default-src 'none' (sin sandbox: rompe el visor PDF de Chrome); .gif retirado de INLINE.
+      - Middleware deja de eximir /uploads; script prisma/migrate-uploads.ts mueve archivos legados.
+    escenarios: [S-012, S-013, S-014, S-028]
+  - codigo: C-007
+    nombre: Páginas de negocio exigen permiso
+    hallazgos: [M-01]
+    capa: [VIS, LOG]
+    estado: CERRADO
+    reglas:
+      - planillas (planillas.ver), planillas/[id] (planillas.ver + tenencia => 404), recorridos (recorridos.ver), reportes (reportes.ver), mi-correspondencia (correspondencia.recibir).
+      - Sin permiso => componente AccessDenied + AuditLog.
+    escenarios: [S-015, S-027]
+  - codigo: C-008
+    nombre: Login endurecido
+    hallazgos: [M-04, M-08]
+    capa: [LOG, PER, GRD]
+    estado: CERRADO
+    reglas:
+      - Límite por usuario (5/min) y por IP (20/min); IP = último valor de X-Forwarded-For o remoto.
+      - Usuario inexistente => bcrypt.compare contra hash dummy (tiempo constante).
+      - Usuario.failedLoginAttempts/lockedUntil; 10 fallos => bloqueo 15 min persistente; éxito => reinicio.
+      - Mensaje genérico siempre; AuditLog LOGIN_OK / LOGIN_FALLIDO / LOGIN_BLOQUEADO.
+    escenarios: [S-016, S-017, S-029]
+  - codigo: C-009
+    nombre: Redirecciones solo a orígenes permitidos
+    hallazgos: [M-05]
+    capa: [LOG, GRD]
+    estado: CERRADO
+    reglas:
+      - ALLOWED_HOSTS (separados por coma) en entorno; Host fuera de la lista => primer host permitido; sin lista => request.nextUrl.
+      - Proto solo http|https.
+    escenarios: [S-018]
+  - codigo: C-010
+    nombre: CSP con nonce y colores de marca validados
+    hallazgos: [M-06]
+    capa: [VIS, GRD]
+    estado: CERRADO
+    reglas:
+      - Middleware genera nonce; script-src 'self' 'nonce-…' 'strict-dynamic'; sin unsafe-inline en script-src.
+      - CSP sale del next.config (evitar doble cabecera); /api/uploads define su propia CSP.
+      - empresaConfigSchema valida HSL (regex); ThemeInjector re-valida y descarta inválidos.
+    escenarios: [S-019, S-020]
+  - codigo: C-011
+    nombre: Bitácora de auditoría y autoría
+    hallazgos: [M-07, B-05]
+    capa: [PER, LOG]
+    estado: CERRADO
+    reglas:
+      - Modelo AuditLog (fecha, usuarioId?, username, accion, entidad, entidadId?, detalle Json?, ip?).
+      - audit() nunca interrumpe la acción (captura y registra error).
+      - Correspondencia.createdBy/updatedBy, Planilla.createdBy.
+      - Notificaciones en src/lib/notifications.ts; sin datos personales en logs de producción.
+    escenarios: [S-021]
+  - codigo: C-012
+    nombre: Seed no destructivo sin credenciales conocidas
+    hallazgos: [M-02]
+    capa: [PER, GRD]
+    estado: CERRADO
+    reglas:
+      - Sin deleteMany; upsert de catálogos y permisos; usuarios solo si la tabla está vacía.
+      - Contraseñas desde SEED_*_PASSWORD o generadas y mostradas una vez; sin literal 123456.
+      - NODE_ENV=production => aborta salvo SEED_ALLOW_PRODUCTION=1.
+    escenarios: [S-022]
+  - codigo: C-013
+    nombre: Integridad del modelo (enums, índices, transacciones)
+    hallazgos: [B-02, B-03]
+    capa: [PER]
+    estado: CERRADO
+    reglas:
+      - Enums Role, TipoCorrespondencia, Importancia, EstadoCorrespondencia, EstadoPlanilla, TipoRecorrido, EstadoRecorrido.
+      - Migración SQL manual con USING para conservar datos.
+      - Índices en Correspondencia(estado,tipo,agenciaId,planillaId), Planilla(estado,tipo,agenciaId), Sesion, AuditLog.
+      - generatePlanillaAction en $transaction con updateMany filtrado por estado.
+    escenarios: [S-023, S-030]
+  - codigo: C-014
+    nombre: Tests de autorización reales
+    hallazgos: [B-04]
+    capa: [GRD]
+    estado: CERRADO
+    reglas:
+      - Mapa acción => guard esperado; requireSession solo donde la Spec lo permita.
+      - Tests de comportamiento con prisma y sesión simulados para AC-002, AC-003, AC-004, AC-005.
+    escenarios: [S-024]
+  - codigo: C-015
+    nombre: Usuarios con email validado y agencia obligatoria para AGENCIA
+    hallazgos: [B-05, B-09]
+    capa: [VIS, LOG]
+    estado: CERRADO
+    reglas:
+      - createUserSchema/updateUserSchema con email opcional válido; refine role=AGENCIA => agenciaId requerido.
+      - UserForm incluye email.
+    escenarios: [S-025]
+  - codigo: C-016
+    nombre: Saneamiento de mantenimiento y operación
+    hallazgos: [B-07, B-08]
+    capa: [LOG]
+    estado: CERRADO
+    reglas:
+      - Eliminar dependencia cookie; renombrar panillas.ts => planillas.ts.
+      - README real y docs/OPERACION.md (runbook versionado) sin secretos ni IPs.
+    escenarios: [S-026]

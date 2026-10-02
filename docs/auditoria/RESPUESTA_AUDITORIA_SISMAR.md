@@ -213,7 +213,7 @@ una vez rotadas las credenciales de los usuarios semilla.
 
 ### Paso operativo — rotación de contraseñas de usuarios semilla
 Se incluye el script `prisma/rotate-passwords.ts`, que reemplaza la contraseña por defecto
-(`123456`) por una contraseña fuerte y aleatoria (16 caracteres, cumple la política SEC-020),
+(la por defecto del seed) por una contraseña fuerte y aleatoria (16 caracteres, cumple la política SEC-020),
 con hash bcrypt (coste 12). Ejecutar en el servidor tras el primer arranque:
 
 ```bash
@@ -222,7 +222,7 @@ npx tsx prisma/rotate-passwords.ts            # rota admin, mensajero, gerencia,
 
 Las nuevas contraseñas se muestran **una sola vez** en pantalla (no se escriben a disco ni a
 logs); deben guardarse en un gestor seguro. Verificado (E2E sobre PostgreSQL): tras la rotación,
-`123456` deja de ser válida y la nueva contraseña autentica correctamente.
+la contraseña por defecto deja de ser válida y la nueva contraseña autentica correctamente.
 
 ---
 

@@ -44,9 +44,11 @@ interface RecorridosClientProps {
     recorridoActivo: RecorridoActivo | null
     planillasAbiertas: number
     planillasCerradas: number
+    /** H-003: iniciar/anular/agregar exige `recorridos.gestionar` (re-verificado en servidor). */
+    canManage?: boolean
 }
 
-export default function RecorridosClient({ recorridoActivo, planillasAbiertas, planillasCerradas }: RecorridosClientProps) {
+export default function RecorridosClient({ recorridoActivo, planillasAbiertas, planillasCerradas, canManage = false }: RecorridosClientProps) {
     const [showCreateModal, setShowCreateModal] = useState(false)
     const [showWarning, setShowWarning] = useState(false)
     const [tipo, setTipo] = useState("AM")
@@ -131,7 +133,7 @@ export default function RecorridosClient({ recorridoActivo, planillasAbiertas, p
                                     {recorridoActivo.estado === "INICIADO" ? "En Curso" :
                                      recorridoActivo.estado === "TERMINADO" ? "Terminado" : "Anulado"}
                                 </span>
-                                {recorridoActivo.estado === "INICIADO" && (
+                                {canManage && recorridoActivo.estado === "INICIADO" && (
                                     <button
                                         onClick={() => handleAnular(recorridoActivo.id)}
                                         disabled={isPending}
@@ -242,7 +244,7 @@ export default function RecorridosClient({ recorridoActivo, planillasAbiertas, p
                     </div>
 
                     {/* Botón agregar planillas al recorrido activo */}
-                    {recorridoActivo.estado === "INICIADO" && planillasCerradas > 0 && (
+                    {canManage && recorridoActivo.estado === "INICIADO" && planillasCerradas > 0 && (
                         <button
                             onClick={handleCreateClick}
                             className="w-full flex items-center justify-center gap-2 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-sm font-semibold rounded-xl transition-colors"
@@ -266,14 +268,16 @@ export default function RecorridosClient({ recorridoActivo, planillasAbiertas, p
                                 : "Cierre las planillas para poder iniciar un recorrido"}
                         </p>
                     </div>
-                    <button
-                        onClick={handleCreateClick}
-                        disabled={planillasCerradas === 0}
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
-                    >
-                        <Route className="w-4 h-4" />
-                        Iniciar Recorrido
-                    </button>
+                    {canManage && (
+                        <button
+                            onClick={handleCreateClick}
+                            disabled={planillasCerradas === 0}
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
+                        >
+                            <Route className="w-4 h-4" />
+                            Iniciar Recorrido
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -369,7 +373,7 @@ export default function RecorridosClient({ recorridoActivo, planillasAbiertas, p
                             </div>
                             <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-700">
                                 Se incluirán <strong>{planillasCerradas}</strong> planilla{planillasCerradas !== 1 ? "s" : ""} cerrada{planillasCerradas !== 1 ? "s" : ""} en el recorrido.
-                                Se enviará un correo a los responsables de cada agencia.
+                                Se notificará por correo a los responsables de cada agencia cuando el servicio de correo esté configurado.
                             </div>
                             <div className="flex gap-3">
                                 <button onClick={() => setShowCreateModal(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50">

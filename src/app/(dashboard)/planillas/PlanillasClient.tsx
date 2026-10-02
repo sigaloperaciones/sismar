@@ -13,13 +13,20 @@ interface PlanillasClientProps {
     pendingSalienteCount: number
     recentPlanillasEntrante: any[]
     recentPlanillasSaliente: any[]
+    /** H-003: la UI refleja los permisos; el servidor los re-verifica siempre. */
+    canCreate?: boolean
+    canCreateSaliente?: boolean
+    canManage?: boolean
 }
 
 export default function PlanillasClient({
     agenciesWithPendingEntrante,
     pendingSalienteCount,
     recentPlanillasEntrante,
-    recentPlanillasSaliente
+    recentPlanillasSaliente,
+    canCreate = false,
+    canCreateSaliente = false,
+    canManage = false,
 }: PlanillasClientProps) {
     const [activeTab, setActiveTab] = useState<"ENTRANTE" | "SALIENTE">("ENTRANTE")
 
@@ -150,7 +157,7 @@ export default function PlanillasClient({
                                                     documento{count !== 1 ? "s" : ""} pendiente{count !== 1 ? "s" : ""}
                                                 </p>
                                             </div>
-                                            <GenerateButton agenciaId={agencia.id} tipo="ENTRANTE" />
+                                            {canCreate && <GenerateButton agenciaId={agencia.id} tipo="ENTRANTE" />}
                                         </div>
                                     )
                                 })}
@@ -178,7 +185,7 @@ export default function PlanillasClient({
                                         documento{pendingSalienteCount !== 1 ? "s" : ""} pendiente{pendingSalienteCount !== 1 ? "s" : ""}
                                     </p>
                                 </div>
-                                <GenerateButton tipo="SALIENTE" />
+                                {canCreateSaliente && <GenerateButton tipo="SALIENTE" />}
                             </div>
                         )
                     )}
@@ -226,7 +233,7 @@ export default function PlanillasClient({
                                                 {p.estado === "PROCESADA" ? "Procesada" : p.estado === "CERRADA" ? "Cerrada" : "Generada"}
                                             </span>
                                             {/* Si es saliente, no se usa "PROCESADA" ni recorridos */}
-                                            {!(activeTab === "SALIENTE" && p.estado === "CERRADA") && (
+                                            {canManage && !(activeTab === "SALIENTE" && p.estado === "CERRADA") && (
                                                 <PlanillaStatusButton planillaId={p.id} estado={p.estado} tipo={p.tipo} />
                                             )}
                                             <Link href={`/planillas/${p.id}`}>
