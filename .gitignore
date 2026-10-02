@@ -60,3 +60,6 @@ dev-server.log
 # Archivos subidos por los usuarios (directorio privado, nunca versionar)
 /storage/
 /public/uploads/
+
+# Archivos de bloqueo de Microsoft Office (quedan huérfanos si Word se cierra a la fuerza)
+~$*
