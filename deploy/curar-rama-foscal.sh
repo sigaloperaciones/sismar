@@ -53,12 +53,12 @@ EXCLUIR=(
   publicar.bat
 )
 for p in "${EXCLUIR[@]}"; do
-  if git ls-files --error-unmatch -- "$p" >/dev/null 2>&1; then git rm -r -q -- "$p"; echo "   - $p"; fi
+  if git ls-files --error-unmatch -- "$p" >/dev/null 2>&1; then git rm -r -q -f -- "$p"; echo "   - $p"; fi
 done
 
 echo "== 4) marca del canal comercial (SIGAL Group)"
 # Documentos de texto: sustitución directa (de más específico a más general).
-MARCA_MD=( README.md docs/OPERACION.md specs/H-003-remediacion-auditoria-2/spec.md "src/app/(auth)/login/page.tsx" src/app/globals.css )
+MARCA_MD=( README.md .env.example docs/OPERACION.md specs/H-003-remediacion-auditoria-2/spec.md "src/app/(auth)/login/page.tsx" src/app/globals.css )
 while IFS= read -r f; do MARCA_MD+=("$f"); done < <(git ls-files 'docs/manuales/fuente/*.md')
 for f in "${MARCA_MD[@]}"; do
   [ -f "$f" ] || continue
@@ -95,10 +95,20 @@ fi
 echo "   sin menciones internas"
 for p in "${EXCLUIR[@]}"; do git ls-files --error-unmatch -- "$p" >/dev/null 2>&1 && { echo "ERROR: $p sigue presente"; exit 1; }; done
 echo "   exclusiones aplicadas"
-ln -s "$ROOT/node_modules" node_modules
+# node_modules del repositorio principal: en Windows (Git Bash) se usa una unión de
+# directorios (mklink /J) porque `ln -s` copiaría la carpeta; se elimina solo la unión.
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    WT_NM="$(cygpath -w "$WT/node_modules")"; ROOT_NM="$(cygpath -w "$ROOT/node_modules")"
+    MSYS_NO_PATHCONV=1 cmd /c mklink /J "$WT_NM" "$ROOT_NM" >/dev/null
+    QUITAR_NM="MSYS_NO_PATHCONV=1 cmd /c rmdir \"$WT_NM\"" ;;
+  *)
+    ln -s "$ROOT/node_modules" node_modules
+    QUITAR_NM='rm -f node_modules' ;;
+esac
 npx tsc --noEmit >/dev/null && echo "   tsc: sin errores"
 npx vitest run 2>&1 | grep -E "Test Files|Tests " | sed 's/^/   /'
-rm -f node_modules
+eval "$QUITAR_NM" 
 
 echo "== 6) commit curado"
 git commit -q -m "$MSG" -m "Rama curada para el cliente: incluye código, migraciones, pruebas, especificaciones STRATA, manuales e informe (SIGAL Group · Equipo ASIA). Excluye configuración de infraestructura y documentación interna." -m "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
