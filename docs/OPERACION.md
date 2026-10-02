@@ -27,6 +27,7 @@ Internet ──TLS──▶ Proxy inverso (Caddy/Nginx) ──▶ Node (Next.js,
 | `JWT_SECRET` | Sí | Aleatorio, mínimo 32 caracteres (la app no arranca con menos); recomendado `openssl rand -hex 64`. Rotarlo cierra todas las sesiones. |
 | `ALLOWED_HOSTS` | Sí (prod) | Dominio(s) público(s) separados por coma. El middleware solo redirige a estos hosts. Sin él, tras un proxy las redirecciones apuntarían a localhost. |
 | `UPLOADS_DIR` | Recomendada | Directorio privado de archivos, **fuera de `public/`**. Por defecto `<raíz>/storage/uploads`. |
+| `NEXT_PUBLIC_BRAND_CREDIT` | No | Crédito de marca de la pantalla de acceso (se fija en el build). Por defecto `By AISerNet Company`. |
 | `NODE_ENV` | Sí | `production`. |
 | `SEED_*_PASSWORD` | No | Solo para el seed inicial de una base vacía. |
 

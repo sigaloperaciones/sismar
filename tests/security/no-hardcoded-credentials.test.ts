@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readdirSync, readFileSync, statSync } from 'fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
 import path from 'path'
 
 /**
@@ -8,6 +8,8 @@ import path from 'path'
  * existir en el código fuente de la app (src/) NI en los scripts (prisma/) — H-003 / M-02.
  */
 function walk(dir: string, acc: string[] = []): string[] {
+    // Algunas carpetas (p. ej. deploy/) no existen en la rama curada para el cliente.
+    if (!existsSync(dir)) return acc
     for (const entry of readdirSync(dir)) {
         const full = path.join(dir, entry)
         if (statSync(full).isDirectory()) {

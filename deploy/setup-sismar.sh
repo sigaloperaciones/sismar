@@ -40,6 +40,8 @@ DATABASE_URL="postgresql://sismar:${POSTGRES_PASSWORD}@localhost:5433/sismar?sch
 ALLOWED_HOSTS="${SITE_DOMAIN}"
 # H-003 / C-006: archivos subidos FUERA de public/, servidos solo por /api/uploads
 UPLOADS_DIR="$(pwd)/storage/uploads"
+# Canal comercial de este cliente (Clínica FOSCAL): la marca visible es SIGAL Group.
+NEXT_PUBLIC_BRAND_CREDIT="By SIGAL Group"
 JWT_SECRET="${JWT_SECRET}"
 NODE_ENV=production
 EOF

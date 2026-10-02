@@ -4,6 +4,7 @@
  *
  * Uso (bash):
  *   NODE_PATH=%TEMP%/docxgen/node_modules node docs/auditoria/fuente/informe-remediacion-auditoria-2.cjs [salida.docx]
+ *   INFORME_MARCA=SIGAL ... genera la versión para el cliente (SIGAL Group — Equipo ASIA).
  * Requiere `docx@9` instalado en una carpeta temporal (no forma parte del proyecto) y la
  * fuente NEBULA en `public/fonts/NEBULA-Regular.otf` (o la variable NEBULA_FONT).
  *
@@ -18,7 +19,15 @@ const {
 } = require("docx")
 
 const ROOT = path.resolve(__dirname, "..", "..", "..")
-const OUT = process.argv[2] || path.join(ROOT, "docs", "auditoria", "Informe_Remediacion_Auditoria2_SISMAR_ASIA.docx")
+// Marca del emisor: ASIA (interna, AISerNet Company) o SIGAL (versión entregada al cliente, igual
+// que en la primera auditoría: "SIGAL Group — Equipo ASIA" y crédito "By SIGAL Group").
+const MARCA = (process.env.INFORME_MARCA || "ASIA").toUpperCase()
+const SIGAL = MARCA === "SIGAL"
+const ORG_LONG = SIGAL ? "SIGAL Group" : "AISerNet Company"
+const brandText = (s) => SIGAL
+    ? s.replace(/By AISerNet Company/g, "By SIGAL Group").replace(/AISerNet Company/g, "SIGAL Group").replace(/AISerNet/g, "SIGAL Group")
+    : s
+const OUT = process.argv[2] || path.join(ROOT, "docs", "auditoria", `Informe_Remediacion_Auditoria2_SISMAR_${MARCA}.docx`)
 const FONT_FILE = process.env.NEBULA_FONT || path.join(ROOT, "public", "fonts", "NEBULA-Regular.otf")
 
 // ── Paleta y tipografía ───────────────────────────────────────────────────────
@@ -30,7 +39,7 @@ const PAGE_W = 12240, PAGE_H = 15840, MARGIN = 1080 // Carta, márgenes 0,75"
 const CONTENT_W = PAGE_W - 2 * MARGIN // 10080 DXA
 
 // ── Utilidades ────────────────────────────────────────────────────────────────
-const t = (text, opts = {}) => new TextRun({ text, font: BODY, size: 21, color: C.ink, ...opts })
+const t = (text, opts = {}) => new TextRun({ text: brandText(text), font: BODY, size: 21, color: C.ink, ...opts })
 const p = (children, opts = {}) => new Paragraph({ spacing: { after: 120, line: 276 }, ...opts, children: Array.isArray(children) ? children : [typeof children === "string" ? t(children) : children] })
 const h1 = (text) => new Paragraph({ heading: HeadingLevel.HEADING_1, keepNext: true, spacing: { before: 360, after: 160 }, children: [new TextRun({ text, font: BODY, size: 32, bold: true, color: C.teal })] })
 const h2 = (text) => new Paragraph({ heading: HeadingLevel.HEADING_2, keepNext: true, spacing: { before: 240, after: 120 }, children: [new TextRun({ text, font: BODY, size: 25, bold: true, color: C.ink })] })
@@ -236,10 +245,10 @@ const fonts = []
 if (fs.existsSync(FONT_FILE)) fonts.push({ name: BRAND, data: fs.readFileSync(FONT_FILE), characterSet: CharacterSet.ANSI })
 else console.warn(`AVISO: no se encontró la fuente NEBULA en ${FONT_FILE}; el crédito queda declarado con la familia "${BRAND}".`)
 
-const brandCredit = (align = AlignmentType.CENTER) => new Paragraph({ alignment: align, spacing: { after: 0 }, children: [new TextRun({ text: "By AISerNet Company", font: BRAND, size: 20, color: C.ink })] })
+const brandCredit = (align = AlignmentType.CENTER) => new Paragraph({ alignment: align, spacing: { after: 0 }, children: [new TextRun({ text: `By ${ORG_LONG}`, font: BRAND, size: 20, color: C.ink })] })
 
 const header = new Header({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: C.line, space: 4 } }, spacing: { after: 120 },
-    children: [t("AISerNet Company · Equipo ASIA", { size: 16, color: C.grey, bold: true }), t("   |   Informe de Remediación — Auditoría N.º 2 — SISMAR   |   Confidencial", { size: 16, color: C.grey })] })] })
+    children: [t(`${ORG_LONG} · Equipo ASIA`, { size: 16, color: C.grey, bold: true }), t("   |   Informe de Remediación — Auditoría N.º 2 — SISMAR   |   Confidencial", { size: 16, color: C.grey })] })] })
 
 const footer = new Footer({ children: [
     new Paragraph({ border: { top: { style: BorderStyle.SINGLE, size: 4, color: C.line, space: 4 } }, spacing: { before: 60, after: 0 }, children: [] }),
@@ -299,7 +308,9 @@ const metodo = [
     n1([bold("Construcción (Gate TDD). "), t("Cada contrato se implementó con pruebas que pasaron de rojo a verde; la suite creció de 55 a 253 pruebas en 30 archivos, con cobertura del 81 % en la capa de lógica y seguridad.")]),
     n1([bold("Verificación (Gate BDD). "), t("Compilación de producción, auditoría de dependencias, migración sobre una base con datos y smoke de extremo a extremo en navegador con un usuario de cada rol y dos agencias distintas.")]),
     n1([bold("Revisión Guardian independiente. "), t("Un revisor de seguridad independiente del equipo que implementó auditó el cambio completo con veto; sus hallazgos se verificaron uno a uno y se corrigieron con el mismo rigor (sección 6).")]),
-    p([t("Trazabilidad: "), code("specs/H-003-remediacion-auditoria-2/"), t(" (especificación, modelo de amenazas, contratos y escenarios), "), code("artefacts/H-003/"), t(" (declaración de Pulso, acta de cierre, RADAR y cobertura) y "), code("docs/auditoria/RESPUESTA_AUDITORIA_2_SISMAR.md"), t(" (respuesta técnica detallada).")]),
+    SIGAL
+        ? p([t("Trazabilidad: "), code("specs/H-003-remediacion-auditoria-2/"), t(" (especificación, modelo de amenazas, contratos y escenarios BDD) y la suite de pruebas en "), code("tests/security/"), t(".")])
+        : p([t("Trazabilidad: "), code("specs/H-003-remediacion-auditoria-2/"), t(" (especificación, modelo de amenazas, contratos y escenarios), "), code("artefacts/H-003/"), t(" (declaración de Pulso, acta de cierre, RADAR y cobertura) y "), code("docs/auditoria/RESPUESTA_AUDITORIA_2_SISMAR.md"), t(" (respuesta técnica detallada).")]),
 ]
 
 // 3. Estado por hallazgo
@@ -424,11 +435,11 @@ const anexos = [
         headerRow(["ARTEFACTO", "CONTENIDO"], [3400, 6680]),
         ...[
             ["specs/H-003-remediacion-auditoria-2/", "Spec STR-A09, threat model STR-A13 (AC-001…AC-022), contratos C-001…C-016, escenarios BDD S-001…S-030."],
-            ["artefacts/H-003/", "Declaración de Pulso (STR-A01), Acta de Cierre (STR-A03), RADAR (R-020…R-054) y Reporte de Cobertura (STR-A12)."],
+            ...(SIGAL ? [] : [["artefacts/H-003/", "Declaración de Pulso (STR-A01), Acta de Cierre (STR-A03), RADAR (R-020…R-054) y Reporte de Cobertura (STR-A12)."]]),
             ["tests/security/ (30 archivos)", "253 pruebas: tenencia, autorización por rol, sesión, archivos, login, CSP, middleware, páginas, revocación, CSV, seed, esquemas."],
             ["tests/e2e/rsc-admin-bypass.poc.ts", "Prueba de concepto manual del control propio por página frente a peticiones que omiten los layouts."],
             ["prisma/migrations/20261001120000_…, 20261001133000_…", "Migraciones de enumeraciones, sesiones, bitácora, bloqueo de cuenta, índices y recorrido único, escritas a mano para conservar los datos."],
-            ["docs/auditoria/RESPUESTA_AUDITORIA_2_SISMAR.md", "Respuesta técnica punto por punto con referencias a archivos y pruebas."],
+            ...(SIGAL ? [] : [["docs/auditoria/RESPUESTA_AUDITORIA_2_SISMAR.md", "Respuesta técnica punto por punto con referencias a archivos y pruebas."]]),
             ["docs/OPERACION.md · README.md", "Runbook de operación y guía del repositorio, sin secretos ni datos de infraestructura."],
             ["docs/manuales/", "Manual del Usuario, Manual Técnico y Manual de Implementación en Cliente (Word y fuente Markdown)."],
         ].map(([a, b]) => new TableRow({ cantSplit: true, children: [cell([code(a)], 3400, { size: 17 }), cell(b, 6680, { size: 17 })] })),
@@ -447,7 +458,7 @@ const anexos = [
 ]
 
 const doc = new Document({
-    creator: "AISerNet Company — Equipo ASIA",
+    creator: `${ORG_LONG} — Equipo ASIA`,
     title: "Informe de Remediación — Auditoría de Seguridad y Arquitectura N.º 2 — SISMAR",
     description: "Respuesta formal a la auditoría del 31/08/2026 (23 hallazgos). Metodología STRATA v3.",
     fonts,

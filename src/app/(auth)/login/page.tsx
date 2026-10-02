@@ -151,8 +151,8 @@ export default function LoginPage() {
                         </button>
                     </form>
 
-                    {/* Branding AISerNet (obligatorio en toda app): NEBULA 10 pt */}
-                    <p className="brand-credit text-center text-slate-400 pt-4">By AISerNet Company</p>
+                    {/* Crédito de marca (NEBULA 10 pt). Configurable por despliegue con NEXT_PUBLIC_BRAND_CREDIT. */}
+                    <p className="brand-credit text-center text-slate-400 pt-4">{process.env.NEXT_PUBLIC_BRAND_CREDIT || "By AISerNet Company"}</p>
                 </div>
             </div>
         </div>
